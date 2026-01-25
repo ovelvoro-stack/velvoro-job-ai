@@ -1,130 +1,26 @@
-from fastapi import FastAPI, Form, UploadFile, File
+from fastapi import FastAPI, Request, Form, UploadFile, File
 from fastapi.responses import HTMLResponse
-import uvicorn, os
-from openpyxl import Workbook, load_workbook
+from fastapi.templating import Jinja2Templates
+import pandas as pd
+import os
+import google.generativeai as genai
+
+# ================= CONFIG =================
+genai.configure(api_key="PASTE_YOUR_GEMINI_API_KEY")
 
 app = FastAPI()
+templates = Jinja2Templates(directory="templates")
 
-# ===================== DATA =====================
+EXCEL_FILE = "data.xlsx"
 
-IT_JOBS = [
-    "Python Developer","Java Developer","Full Stack Developer","Frontend Developer",
-    "Backend Developer","AI / ML Engineer","Data Scientist","Data Analyst",
-    "DevOps Engineer","Cloud Engineer","Cyber Security Analyst","QA / Tester",
-    "Automation Engineer","Mobile App Developer","UI / UX Designer",
-    "System Administrator","Network Engineer"
-]
-
-NON_IT_JOBS = [
-    "HR Executive","HR Manager","Recruiter","Marketing Executive",
-    "Digital Marketing Executive","Sales Executive","Business Development Executive",
-    "Operations Executive","Customer Support","Office Admin","Accountant","Finance Executive"
-]
-
-QUALIFICATIONS = [
-    "B.Tech","M.Tech","MCA","BCA","B.Sc","M.Sc","MBA",
-    "Degree","Diploma","Intermediate","Others"
-]
-
-EXPERIENCE = list(range(0, 31))
-
-QUESTIONS = {
-    "Python Developer": [
-        "Explain Python lists and tuples",
-        "What is a dictionary in Python?",
-        "What is OOP in Python?"
-    ],
-    "Java Developer": [
-        "What is JVM?",
-        "Difference between abstract class and interface",
-        "Explain OOP concepts"
-    ],
-    "HR Executive": [
-        "How do you handle employee conflict?",
-        "What is recruitment process?",
-        "How do you evaluate candidates?"
-    ],
-    "Marketing Executive": [
-        "What is digital marketing?",
-        "Explain SEO",
-        "How do you generate leads?"
-    ]
-}
-
-# ===================== EXCEL =====================
-
-FILE_NAME = "applications.xlsx"
-
-if not os.path.exists(FILE_NAME):
-    wb = Workbook()
-    ws = wb.active
-    ws.append([
-        "Name","Phone","Email","Experience","Qualification","Job Role",
-        "Country","State","District","Area","AI Score","Result","Resume"
-    ])
-    wb.save(FILE_NAME)
-
-def save_to_excel(data):
-    wb = load_workbook(FILE_NAME)
-    ws = wb.active
-    ws.append(data)
-    wb.save(FILE_NAME)
-
-# ===================== AI EVAL =====================
-
-def evaluate_answers(answers):
-    score = 0
-    for ans in answers:
-        if len(ans.strip()) > 15:
-            score += 1
-    return score
-
-# ===================== UI =====================
-
+# ================= HOME =================
 @app.get("/", response_class=HTMLResponse)
-def home():
-    return """
-    <h2>AI Powered Job Application – Velvoro Software Solution</h2>
-    <a href="/apply">Apply Now</a>
-    """
+def home(request: Request):
+    return templates.TemplateResponse("apply.html", {"request": request})
 
-@app.get("/apply", response_class=HTMLResponse)
-def apply():
-    job_options = "".join([f"<option>{j}</option>" for j in IT_JOBS + NON_IT_JOBS])
-    qual_options = "".join([f"<option>{q}</option>" for q in QUALIFICATIONS])
-    exp_options = "".join([f"<option>{e}</option>" for e in EXPERIENCE])
-
-    return f"""
-    <form method="post" action="/submit" enctype="multipart/form-data">
-    <h3>AI Powered Job Application – Velvoro Software Solution</h3>
-
-    <input name="name" placeholder="Full Name" required><br><br>
-    <input name="phone" placeholder="Phone Number" required><br><br>
-    <input name="email" placeholder="Email ID" required><br><br>
-
-    <select name="experience">{exp_options}</select><br><br>
-    <select name="qualification">{qual_options}</select><br><br>
-    <select name="job_role">{job_options}</select><br><br>
-
-    <input name="country" placeholder="Country"><br><br>
-    <input name="state" placeholder="State"><br><br>
-    <input name="district" placeholder="District"><br><br>
-    <input name="area" placeholder="Area / Locality"><br><br>
-
-    <input type="file" name="resume" required><br><br>
-
-    <textarea name="q1" placeholder="Answer 1"></textarea><br><br>
-    <textarea name="q2" placeholder="Answer 2"></textarea><br><br>
-    <textarea name="q3" placeholder="Answer 3"></textarea><br><br>
-
-    <button type="submit">Submit Application</button>
-    </form>
-    """
-
-# ===================== SUBMIT =====================
-
-@app.post("/submit", response_class=HTMLResponse)
-async def submit(
+# ================= APPLY =================
+@app.post("/submit")
+def submit(
     name: str = Form(...),
     phone: str = Form(...),
     email: str = Form(...),
@@ -140,30 +36,60 @@ async def submit(
     q3: str = Form(...),
     resume: UploadFile = File(...)
 ):
-    answers = [q1, q2, q3]
-    score = evaluate_answers(answers)
-    result = "Qualified" if score >= 2 else "Not Qualified"
+    # ===== AI EVALUATION =====
+    model = genai.GenerativeModel("gemini-pro")
 
-    resume_path = f"resumes_{resume.filename}"
-    with open(resume_path, "wb") as f:
-        f.write(await resume.read())
+    prompt = f"""
+    Job Role: {job_role}
+    Q1 Answer: {q1}
+    Q2 Answer: {q2}
+    Q3 Answer: {q3}
 
-    save_to_excel([
-        name, phone, email, experience, qualification, job_role,
-        country, state, district, area, score, result, resume.filename
-    ])
-
-    return f"""
-    <h2>Application Submitted</h2>
-    <p>AI Result: <b>{result}</b></p>
-    <p>Score: {score}/3</p>
+    Evaluate and give score out of 100.
+    Say Qualified or Not Qualified.
     """
 
-# ===================== RUN =====================
+    response = model.generate_content(prompt)
+    ai_result = response.text
 
-if __name__ == "__main__":
-    uvicorn.run(
-        "app:app",
-        host="0.0.0.0",
-        port=int(os.environ.get("PORT", 8000))
-    )
+    # ===== SAVE TO EXCEL =====
+    data = {
+        "Name": name,
+        "Phone": phone,
+        "Email": email,
+        "Experience": experience,
+        "Qualification": qualification,
+        "Job Role": job_role,
+        "Country": country,
+        "State": state,
+        "District": district,
+        "Area": area,
+        "AI Result": ai_result
+    }
+
+    if os.path.exists(EXCEL_FILE):
+        df = pd.read_excel(EXCEL_FILE)
+        df = pd.concat([df, pd.DataFrame([data])])
+    else:
+        df = pd.DataFrame([data])
+
+    df.to_excel(EXCEL_FILE, index=False)
+
+    return {
+        "status": "Application Submitted",
+        "ai_result": ai_result
+    }
+
+# ================= ADMIN =================
+@app.get("/admin", response_class=HTMLResponse)
+def admin(request: Request):
+    if os.path.exists(EXCEL_FILE):
+        df = pd.read_excel(EXCEL_FILE)
+        data = df.to_dict(orient="records")
+    else:
+        data = []
+
+    return templates.TemplateResponse("admin.html", {
+        "request": request,
+        "data": data
+    })
