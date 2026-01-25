@@ -1,63 +1,52 @@
 from fastapi import FastAPI, Request, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-import pandas as pd
 import os
 
 app = FastAPI(title="Velvoro Job AI")
 
-templates = Jinja2Templates(directory="templates")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
-DATA_FILE = "applications.xlsx"
+UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ---------------- HOME ----------------
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
-    return templates.TemplateResponse("home.html", {"request": request})
+    return templates.TemplateResponse(
+        "home.html",
+        {"request": request}
+    )
 
 # ---------------- APPLY FORM ----------------
 @app.get("/apply", response_class=HTMLResponse)
 def apply_form(request: Request):
-    return templates.TemplateResponse("apply.html", {"request": request})
+    return templates.TemplateResponse(
+        "apply.html",
+        {"request": request}
+    )
 
 @app.post("/apply")
-def apply_submit(
+async def apply_submit(
     name: str = Form(...),
     email: str = Form(...),
     role: str = Form(...),
-    q1: str = Form(""),
-    q2: str = Form(""),
-    resume: UploadFile = File(None)
+    q1: str = Form(...),
+    q2: str = Form(...),
+    resume: UploadFile = File(...)
 ):
-    data = {
-        "Name": name,
-        "Email": email,
-        "Role": role,
-        "Q1": q1,
-        "Q2": q2,
-        "Resume": resume.filename if resume else ""
-    }
+    file_path = os.path.join(UPLOAD_DIR, resume.filename)
+    with open(file_path, "wb") as f:
+        f.write(await resume.read())
 
-    if os.path.exists(DATA_FILE):
-        df = pd.read_excel(DATA_FILE)
-        df = pd.concat([df, pd.DataFrame([data])], ignore_index=True)
-    else:
-        df = pd.DataFrame([data])
-
-    df.to_excel(DATA_FILE, index=False)
-
-    return RedirectResponse("/apply", status_code=303)
+    return RedirectResponse(url="/", status_code=302)
 
 # ---------------- ADMIN ----------------
 @app.get("/admin", response_class=HTMLResponse)
 def admin_dashboard(request: Request):
-    if os.path.exists(DATA_FILE):
-        df = pd.read_excel(DATA_FILE)
-        records = df.to_dict(orient="records")
-    else:
-        records = []
-
+    files = os.listdir(UPLOAD_DIR)
     return templates.TemplateResponse(
         "admin.html",
-        {"request": request, "records": records}
+        {"request": request, "files": files}
     )
