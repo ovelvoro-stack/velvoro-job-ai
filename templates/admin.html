@@ -4,31 +4,34 @@
     <title>Admin Dashboard</title>
 </head>
 <body>
+    <h2>Admin Dashboard</h2>
 
-<h2>Admin Dashboard – Applications</h2>
+    {% if records %}
+        <table border="1">
+            <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Q1</th>
+                <th>Q2</th>
+                <th>Resume</th>
+            </tr>
+            {% for r in records %}
+            <tr>
+                <td>{{ r.Name }}</td>
+                <td>{{ r.Email }}</td>
+                <td>{{ r.Role }}</td>
+                <td>{{ r.Q1 }}</td>
+                <td>{{ r.Q2 }}</td>
+                <td>{{ r.Resume }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    {% else %}
+        <p>No applications yet.</p>
+    {% endif %}
 
-<table border="1">
-<tr>
-    <th>Name</th>
-    <th>Email</th>
-    <th>Role</th>
-    <th>Q1</th>
-    <th>Q2</th>
-    <th>Resume</th>
-</tr>
-
-{% for r in records %}
-<tr>
-    <td>{{ r.Name }}</td>
-    <td>{{ r.Email }}</td>
-    <td>{{ r.Role }}</td>
-    <td>{{ r.Q1 }}</td>
-    <td>{{ r.Q2 }}</td>
-    <td>{{ r.Resume }}</td>
-</tr>
-{% endfor %}
-
-</table>
-
+    <br>
+    <a href="/">Back to Home</a>
 </body>
 </html>
