@@ -1,31 +1,18 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+import os
 
-app = FastAPI(title="Velvoro Job AI")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app = FastAPI()
 
 @app.get("/")
 def home():
-    return {
-        "status": "RUNNING",
-        "service": "Velvoro Job AI",
-        "message": "Job Application & AI Screening Backend Live"
-    }
+    return {"status": "Velvoro Job AI is running 🚀"}
 
 @app.get("/health")
 def health():
     return {"ok": True}
 
-@app.post("/apply")
-def apply_job(data: dict):
-    return {
-        "result": "Application received",
-        "next": "AI Screening Pending"
-    }
+# Railway needs this
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
