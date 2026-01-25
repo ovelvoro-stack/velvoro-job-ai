@@ -1,89 +1,42 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
-import pandas as pd
-import os
-from datetime import datetime
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
 app = FastAPI()
 
-EXCEL_FILE = "applications.xlsx"
+# Static files (CSS, JS)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# ----------------------------
-# INIT EXCEL
-# ----------------------------
-if not os.path.exists(EXCEL_FILE):
-    df = pd.DataFrame(columns=[
-        "Name", "Email", "Phone",
-        "JobRole", "Experience",
-        "Score", "CreatedAt"
-    ])
-    df.to_excel(EXCEL_FILE, index=False)
+# Templates
+templates = Jinja2Templates(directory="templates")
 
 
-# ----------------------------
-# HEALTH CHECK
-# ----------------------------
-@app.get("/")
-def root():
-    return {"status": "Velvoro Job AI running 🚀"}
+# =========================
+# ROOT – MAIN PAGE
+# =========================
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    return templates.TemplateResponse(
+        "apply.html",   # or home.html / index.html
+        {"request": request}
+    )
 
 
-# ----------------------------
-# REQUEST MODEL
-# ----------------------------
-class JobRequest(BaseModel):
-    name: str
-    email: str
-    phone: str
-    job_role: str
-    experience: int
+# =========================
+# APPLY PAGE (explicit)
+# =========================
+@app.get("/apply", response_class=HTMLResponse)
+async def apply(request: Request):
+    return templates.TemplateResponse(
+        "apply.html",
+        {"request": request}
+    )
 
 
-# ----------------------------
-# JOB API
-# ----------------------------
-@app.post("/job")
-def submit_job(data: JobRequest):
-
-    score = evaluate_score(data.experience)
-
-    new_row = {
-        "Name": data.name,
-        "Email": data.email,
-        "Phone": data.phone,
-        "JobRole": data.job_role,
-        "Experience": data.experience,
-        "Score": score,
-        "CreatedAt": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    }
-
-    df = pd.read_excel(EXCEL_FILE)
-    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-    df.to_excel(EXCEL_FILE, index=False)
-
-    return {
-        "message": "Job application saved",
-        "score": score
-    }
-
-
-# ----------------------------
-# AI EVALUATION (simple logic)
-# ----------------------------
-def evaluate_score(experience: int):
-    if experience >= 5:
-        return 90
-    elif experience >= 3:
-        return 75
-    elif experience >= 1:
-        return 60
-    else:
-        return 40
-
-
-# ----------------------------
-# EVALUATE API
-# ----------------------------
-@app.get("/evaluate/{experience}")
-def evaluate(experience: int):
-    return {"score": evaluate_score(experience)}
+# =========================
+# API TEST (already working)
+# =========================
+@app.get("/health")
+async def health():
+    return {"status": "ok", "message": "Job AI running 🚀"}
