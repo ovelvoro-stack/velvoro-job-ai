@@ -5,49 +5,37 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<h2>Job Application</h2>
+<h2>Job Application Form</h2>
 
-<form method="post" enctype="multipart/form-data">
+<form action="/submit" method="post" enctype="multipart/form-data">
+    <input name="name" placeholder="Full Name" required><br>
+    <input name="email" placeholder="Email" required><br>
+    <input name="phone" placeholder="Phone" required><br>
 
-    <label>Name</label>
-    <input type="text" name="name" required>
-
-    <label>Email</label>
-    <input type="email" name="email" required>
-
-    <label>Job Role</label>
-    <select name="role">
-        <option>Python Developer</option>
-        <option>Java Developer</option>
-        <option>Data Analyst</option>
-        <option>Pharma Executive</option>
-        <option>B.Pharmacy</option>
-        <option>M.Pharmacy</option>
-        <option>Clinical Research</option>
-    </select>
-
-    <label>Experience (Years)</label>
     <select name="experience">
         {% for i in range(0,31) %}
-        <option>{{ i }}</option>
+        <option>{{i}} Years</option>
         {% endfor %}
-    </select>
+    </select><br>
 
-    <label>Qualification</label>
-    <input type="text" name="qualification">
+    <select name="qualification">
+        <option>B.Tech</option>
+        <option>MCA</option>
+        <option>BCA</option>
+        <option>B.Pharmacy</option>
+        <option>M.Pharmacy</option>
+        <option>Other</option>
+    </select><br>
 
-    <label>Why should we hire you?</label>
-    <textarea name="q1"></textarea>
+    <input name="job_role" placeholder="Job Role"><br>
+    <input name="country" placeholder="Country"><br>
+    <input name="state" placeholder="State"><br>
+    <input name="district" placeholder="District"><br>
+    <input name="area" placeholder="Area / Locality"><br>
 
-    <label>Skills & Strengths</label>
-    <textarea name="q2"></textarea>
+    <input type="file" name="resume" required><br><br>
 
-    <label>Resume</label>
-    <input type="file" name="resume" required>
-
-    <button type="submit">Submit</button>
-
+    <button type="submit">Submit Application</button>
 </form>
-
 </body>
 </html>
