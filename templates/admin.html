@@ -2,27 +2,33 @@
 <html>
 <head>
     <title>Admin Dashboard</title>
-    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<h2>Applications</h2>
+
+<h2>Admin Dashboard – Applications</h2>
 
 <table border="1">
 <tr>
-    <th>Name</th><th>Email</th><th>Phone</th>
-    <th>Role</th><th>Experience</th><th>Resume</th>
+    <th>Name</th>
+    <th>Email</th>
+    <th>Role</th>
+    <th>Q1</th>
+    <th>Q2</th>
+    <th>Resume</th>
 </tr>
 
 {% for r in records %}
 <tr>
-    <td>{{r["Name"]}}</td>
-    <td>{{r["Email"]}}</td>
-    <td>{{r["Phone"]}}</td>
-    <td>{{r["Job Role"]}}</td>
-    <td>{{r["Experience"]}}</td>
-    <td>{{r["Resume"]}}</td>
+    <td>{{ r.Name }}</td>
+    <td>{{ r.Email }}</td>
+    <td>{{ r.Role }}</td>
+    <td>{{ r.Q1 }}</td>
+    <td>{{ r.Q2 }}</td>
+    <td>{{ r.Resume }}</td>
 </tr>
 {% endfor %}
+
 </table>
+
 </body>
 </html>
