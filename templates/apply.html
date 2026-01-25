@@ -4,36 +4,30 @@
     <title>Apply Job</title>
 </head>
 <body>
-<h2>Job Application Form</h2>
+    <h2>Job Application</h2>
 
-<form method="post" action="/apply" enctype="multipart/form-data">
-    Name:<br>
-    <input type="text" name="name" required><br><br>
+    <form method="post" enctype="multipart/form-data">
+        Name: <input type="text" name="name" required><br><br>
+        Email: <input type="email" name="email" required><br><br>
 
-    Email:<br>
-    <input type="email" name="email" required><br><br>
+        Role:
+        <select name="role">
+            <option>IT – Software</option>
+            <option>Non-IT – Admin</option>
+            <option>Pharma – B.Pharmacy</option>
+            <option>Pharma – M.Pharmacy</option>
+            <option>Freshers</option>
+        </select><br><br>
 
-    Job Role:<br>
-    <select name="role">
-        <option>Python Developer</option>
-        <option>Java Developer</option>
-        <option>HR Executive</option>
-        <option>Marketing Executive</option>
-        <option>B.Pharmacy</option>
-        <option>M.Pharmacy</option>
-    </select><br><br>
+        Q1: <textarea name="q1"></textarea><br><br>
+        Q2: <textarea name="q2"></textarea><br><br>
 
-    Q1:<br>
-    <textarea name="q1" required></textarea><br><br>
+        Resume: <input type="file" name="resume"><br><br>
 
-    Q2:<br>
-    <textarea name="q2" required></textarea><br><br>
+        <button type="submit">Apply</button>
+    </form>
 
-    Resume:<br>
-    <input type="file" name="resume" required><br><br>
-
-    <button type="submit">Apply</button>
-</form>
-
+    <br>
+    <a href="/">Back to Home</a>
 </body>
 </html>
