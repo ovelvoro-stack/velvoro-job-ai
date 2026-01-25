@@ -1,60 +1,96 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Velvoro Software Solution</title>
-<style>
-body{font-family:Arial;background:#f4f6f8}
-.container{width:800px;margin:auto;background:#fff;padding:20px}
-h2{background:#0b5ed7;color:white;padding:10px}
-label{display:block;margin-top:10px}
-select,input,textarea{width:100%;padding:6px}
-button{margin-top:20px;padding:10px;background:#0b5ed7;color:white;border:none}
-</style>
+    <title>Velvoro Software Solution – AI Job Application</title>
+    <style>
+        body { font-family: Arial; background:#f5f7fa; }
+        .box { width:800px; margin:auto; background:#fff; padding:20px; }
+        h2 { background:#004aad; color:#fff; padding:10px; }
+        input, select, textarea {
+            width:100%; padding:8px; margin:6px 0;
+        }
+        button {
+            background:#004aad; color:white; padding:10px; border:none;
+        }
+    </style>
 </head>
 <body>
-<div class="container">
+
+<div class="box">
 <h2>AI Powered Job Application – Velvoro Software Solution</h2>
-<form method="post" action="/submit">
-<label>Full Name</label><input name="name" required>
-<label>Phone</label><input name="phone" required>
-<label>Email</label><input name="email" required>
 
-<label>Experience</label>
-<select name="experience">{% for i in range(0,31) %}<option>{{i}}</option>{% endfor %}</select>
+<form method="post" action="/apply">
 
-<label>Qualification</label>
+<input name="name" placeholder="Full Name" required>
+<input name="phone" placeholder="Phone Number" required>
+<input name="email" placeholder="Email ID" required>
+
+<select name="experience">
+<option value="0">0 Years</option>
+<option value="1">1 Year</option>
+<option value="2">2 Years</option>
+<option value="3">3 Years</option>
+<option value="4">4 Years</option>
+<option value="5">5+ Years</option>
+</select>
+
 <select name="qualification">
-<option>B.Tech</option><option>M.Tech</option><option>MCA</option>
-<option>MBA</option><option>BSc</option><option>MSc</option>
-<option>Diploma</option><option>ITI</option><option>PhD</option>
+<option>B.Tech</option>
+<option>MCA</option>
+<option>M.Tech</option>
+<option>B.Sc</option>
+<option>M.Sc</option>
+<option>Diploma</option>
+<option>Other</option>
 </select>
 
-<label>Category</label>
-<select name="category">
-<option>IT</option><option>NON-IT</option>
-</select>
-
-<label>Job Role</label>
 <select name="role">
-<option>Python Developer</option><option>Java Developer</option>
-<option>Data Analyst</option><option>HR Executive</option>
+<option>Python Developer</option>
+<option>Java Developer</option>
+<option>Full Stack Developer</option>
+<option>Frontend Developer</option>
+<option>Backend Developer</option>
+<option>Data Analyst</option>
+<option>AI / ML Engineer</option>
+<option>HR Executive</option>
+<option>Recruiter</option>
 </select>
 
-<label>Coaching</label>
-<select name="coaching">
-<option>IT Coaching</option><option>NON-IT Coaching</option>
+<select name="country">
+<option>India</option>
+<option>USA</option>
+<option>UK</option>
+<option>Canada</option>
+<option>UAE</option>
 </select>
 
-<label>Country</label><select name="country"><option>India</option><option>USA</option><option>UK</option></select>
-<label>State</label><select name="state"><option>Andhra Pradesh</option><option>Telangana</option><option>Karnataka</option></select>
-<label>District</label><select name="district"><option>Hyderabad</option><option>Vijayawada</option><option>Guntur</option></select>
-<label>Area</label><input name="area">
+<select name="state">
+<option>Andhra Pradesh</option>
+<option>Telangana</option>
+<option>Karnataka</option>
+<option>Tamil Nadu</option>
+<option>Maharashtra</option>
+</select>
 
-<label>Core Skills</label><textarea name="skills"></textarea>
-<label>Problem Solved</label><textarea name="problem"></textarea>
+<select name="district">
+<option>Hyderabad</option>
+<option>Bengaluru</option>
+<option>Chennai</option>
+<option>Vijayawada</option>
+<option>Guntur</option>
+</select>
+
+<input name="area" placeholder="Area / Locality">
+
+<h3>AI Professional Screening</h3>
+<textarea name="q1" placeholder="Explain your core skills" required></textarea>
+<textarea name="q2" placeholder="Real-time problem you solved" required></textarea>
+<textarea name="q3" placeholder="Why should we hire you?" required></textarea>
 
 <button type="submit">Submit Application</button>
+
 </form>
 </div>
+
 </body>
 </html>
