@@ -1,7 +1,10 @@
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, Form
 from fastapi.responses import HTMLResponse
 
 app = FastAPI(title="Velvoro Job AI")
+
+# TEMP STORAGE (In-Memory)
+applications = []
 
 # ---------------- HOME ----------------
 @app.get("/", response_class=HTMLResponse)
@@ -20,8 +23,8 @@ def apply_form():
     return """
     <h2>Job Apply</h2>
     <form method="post" action="/apply">
-        Name: <input type="text" name="name"><br><br>
-        Email: <input type="email" name="email"><br><br>
+        Name: <input type="text" name="name" required><br><br>
+        Email: <input type="email" name="email" required><br><br>
         Role:
         <select name="role">
             <option>IT</option>
@@ -38,23 +41,38 @@ def apply_submit(
     email: str = Form(...),
     role: str = Form(...)
 ):
-    return f"""
-    <h3>✅ Application Submitted</h3>
-    <p>Name: {name}</p>
-    <p>Email: {email}</p>
-    <p>Role: {role}</p>
+    applications.append({
+        "name": name,
+        "email": email,
+        "role": role
+    })
+
+    return """
+    <h3>✅ Application Submitted Successfully</h3>
     <a href="/">Go Home</a>
     """
 
 # ---------------- ADMIN ----------------
 @app.get("/admin", response_class=HTMLResponse)
 def admin():
-    return """
-    <h2>Admin Dashboard</h2>
-    <p>Coming Soon 🚧</p>
-    <ul>
-        <li>Total Applications</li>
-        <li>AI Ranking</li>
-        <li>Payments</li>
-    </ul>
-    """
+    html = "<h2>📋 Admin Dashboard</h2>"
+
+    if not applications:
+        html += "<p>No applications yet</p>"
+    else:
+        html += "<table border='1' cellpadding='8'>"
+        html += "<tr><th>Name</th><th>Email</th><th>Role</th></tr>"
+
+        for app_data in applications:
+            html += f"""
+            <tr>
+                <td>{app_data['name']}</td>
+                <td>{app_data['email']}</td>
+                <td>{app_data['role']}</td>
+            </tr>
+            """
+
+        html += "</table>"
+
+    html += "<br><a href='/'>Home</a>"
+    return html
