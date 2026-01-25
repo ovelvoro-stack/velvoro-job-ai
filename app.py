@@ -1,83 +1,68 @@
 from fastapi import FastAPI, Request, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 import pandas as pd
 import os
-from datetime import datetime
+import shutil
 
-app = FastAPI(title="Velvoro Job Portal")
+app = FastAPI(title="Velvoro Job AI")
 
-# folders
-os.makedirs("uploads", exist_ok=True)
-os.makedirs("data", exist_ok=True)
-
-EXCEL_FILE = "data/applications.xlsx"
-
-# static & templates
-app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
+UPLOAD_DIR = "uploads"
+DATA_DIR = "data"
+EXCEL_FILE = f"{DATA_DIR}/applications.xlsx"
+
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(DATA_DIR, exist_ok=True)
 
 # ---------------- HOME ----------------
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return templates.TemplateResponse("home.html", {"request": request})
 
-
-# ---------------- APPLY PAGE ----------------
+# ---------------- APPLY FORM ----------------
 @app.get("/apply", response_class=HTMLResponse)
-def apply_page(request: Request):
+def apply_form(request: Request):
     return templates.TemplateResponse("apply.html", {"request": request})
 
-
-# ---------------- SUBMIT FORM ----------------
-@app.post("/submit")
-async def submit_form(
+# ---------------- APPLY SUBMIT ----------------
+@app.post("/apply")
+async def submit_application(
     name: str = Form(...),
     email: str = Form(...),
-    phone: str = Form(...),
-    experience: str = Form(...),
-    qualification: str = Form(...),
-    job_role: str = Form(...),
-    country: str = Form(...),
-    state: str = Form(...),
-    district: str = Form(...),
-    area: str = Form(...),
+    role: str = Form(...),
+    q1: str = Form(...),
+    q2: str = Form(...),
     resume: UploadFile = File(...)
 ):
-    resume_path = f"uploads/{datetime.now().timestamp()}_{resume.filename}"
-    with open(resume_path, "wb") as f:
-        f.write(await resume.read())
+    resume_path = f"{UPLOAD_DIR}/{resume.filename}"
+    with open(resume_path, "wb") as buffer:
+        shutil.copyfileobj(resume.file, buffer)
 
-    data = {
+    row = {
         "Name": name,
         "Email": email,
-        "Phone": phone,
-        "Experience": experience,
-        "Qualification": qualification,
-        "Job Role": job_role,
-        "Country": country,
-        "State": state,
-        "District": district,
-        "Area": area,
-        "Resume": resume_path,
-        "Date": datetime.now().strftime("%Y-%m-%d %H:%M")
+        "Role": role,
+        "Q1": q1,
+        "Q2": q2,
+        "Resume": resume.filename
     }
 
-    df = pd.DataFrame([data])
     if os.path.exists(EXCEL_FILE):
-        old = pd.read_excel(EXCEL_FILE)
-        df = pd.concat([old, df], ignore_index=True)
+        df = pd.read_excel(EXCEL_FILE)
+        df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+    else:
+        df = pd.DataFrame([row])
 
     df.to_excel(EXCEL_FILE, index=False)
 
-    return RedirectResponse("/apply", status_code=303)
+    return RedirectResponse("/apply", status_code=302)
 
-
-# ---------------- ADMIN ----------------
+# ---------------- ADMIN DASHBOARD ----------------
 @app.get("/admin", response_class=HTMLResponse)
-def admin_dashboard(request: Request):
+def admin(request: Request):
     if os.path.exists(EXCEL_FILE):
         df = pd.read_excel(EXCEL_FILE)
         records = df.to_dict(orient="records")
