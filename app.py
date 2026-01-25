@@ -1,9 +1,10 @@
 from fastapi import FastAPI, Request, Form, UploadFile, File
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-import uvicorn, os
+import os
 import pandas as pd
 import google.generativeai as genai
+from datetime import datetime
 
 # ---------------- CONFIG ----------------
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -17,82 +18,93 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ---------------- AI LOGIC ----------------
 def ai_evaluate(role, answers):
-    model = genai.GenerativeModel("gemini-pro")
-    prompt = f"""
-    Evaluate candidate for role: {role}
-    Answers: {answers}
-    Decide QUALIFIED or NOT QUALIFIED.
-    """
-    res = model.generate_content(prompt)
-    text = res.text.lower()
-    return "QUALIFIED" if "qualified" in text else "NOT QUALIFIED"
+    try:
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        prompt = f"""
+You are an HR evaluator.
+Job Role: {role}
 
-# ---------------- HOME / APPLY ----------------
-@app.get("/apply", response_class=HTMLResponse)
-def apply_page():
-    return """
-<!DOCTYPE html>
-<html>
-<head>
-<title>AI Powered Job Application - Velvoro</title>
-<style>
-body{font-family:Arial;background:#f5f5f5}
-.container{width:700px;margin:auto;background:#fff;padding:20px}
-h2{background:#0a3d62;color:#fff;padding:10px}
-input,select,textarea{width:100%;padding:8px;margin:6px 0}
-button{padding:10px;background:#0a3d62;color:#fff;border:none}
-</style>
-</head>
-<body>
-<div class="container">
-<h2>AI Powered Job Application – Velvoro Software Solution</h2>
+Candidate Answers:
+{answers}
 
-<form action="/submit" method="post" enctype="multipart/form-data">
-<input name="name" placeholder="Full Name" required>
-<input name="phone" placeholder="Phone Number" required>
-<input name="email" placeholder="Email" required>
-
-<select name="experience">
-""" + "".join([f"<option>{i}</option>" for i in range(0,31)]) + """
-</select>
-
-<select name="qualification">
-<option>B.Tech</option><option>MCA</option><option>BCA</option>
-<option>M.Tech</option><option>Degree</option><option>Diploma</option>
-</select>
-
-<select name="role">
-<option>Python Developer</option>
-<option>Java Developer</option>
-<option>HR</option>
-<option>Marketing</option>
-<option>Non IT</option>
-</select>
-
-<select name="country">
-<option>India</option><option>USA</option><option>UK</option>
-<option>Canada</option><option>Australia</option>
-</select>
-
-<input name="state" placeholder="State">
-<input name="district" placeholder="District">
-<input name="area" placeholder="Area / Locality">
-
-<h3>AI Screening Questions</h3>
-<textarea name="answers" placeholder="Answer the questions here..." required></textarea>
-
-<label>Upload Resume</label>
-<input type="file" name="resume" required>
-
-<button type="submit">Submit Application</button>
-</form>
-</div>
-</body>
-</html>
+Decide strictly:
+Return only one word: QUALIFIED or NOT QUALIFIED
 """
+        res = model.generate_content(prompt)
+        text = res.text.upper()
+        return "QUALIFIED" if "QUALIFIED" in text else "NOT QUALIFIED"
+    except:
+        return "NOT QUALIFIED"
+
+# ---------------- HOME ----------------
+@app.get("/", response_class=HTMLResponse)
+def home():
+    return """
+    <h2>Velvoro Software Solution</h2>
+    <h3>AI Powered Job Application</h3>
+    <a href="/apply">Apply for Job</a><br><br>
+    <a href="/docs">API Docs</a>
+    """
+
+# ---------------- APPLY FORM ----------------
+@app.get("/apply", response_class=HTMLResponse)
+def apply_form():
+    jobs_it = [
+        "Python Developer","Java Developer","Full Stack Developer",
+        "Frontend Developer","Backend Developer","DevOps Engineer",
+        "Data Analyst","Data Scientist","AI/ML Engineer","QA Tester"
+    ]
+    jobs_non_it = ["HR Executive","HR Manager","Recruiter","Marketing","Sales"]
+
+    job_options = "".join([f"<option>{j}</option>" for j in jobs_it + jobs_non_it])
+    exp_options = "".join([f"<option>{i}</option>" for i in range(0,31)])
+
+    return f"""
+    <h2>AI Powered Job Application – Velvoro</h2>
+    <form action="/submit" method="post" enctype="multipart/form-data">
+
+    Full Name:<br><input name="name" required><br><br>
+    Phone:<br><input name="phone" required><br><br>
+    Email:<br><input name="email" required><br><br>
+
+    Experience (Years):<br>
+    <select name="experience">{exp_options}</select><br><br>
+
+    Qualification:<br>
+    <select name="qualification">
+      <option>B.Tech</option>
+      <option>MCA</option>
+      <option>MBA</option>
+      <option>B.Sc</option>
+      <option>Diploma</option>
+    </select><br><br>
+
+    Job Role:<br>
+    <select name="role">{job_options}</select><br><br>
+
+    Country:<br><input name="country" value="India"><br><br>
+    State:<br><input name="state"><br><br>
+    District:<br><input name="district"><br><br>
+    Area:<br><input name="area"><br><br>
+
+    Resume:<br>
+    <input type="file" name="resume" required><br><br>
+
+    Q1: Explain your core skills:<br>
+    <textarea name="q1" required></textarea><br><br>
+
+    Q2: Describe a real-time problem you solved:<br>
+    <textarea name="q2" required></textarea><br><br>
+
+    Q3: Why should we hire you?:<br>
+    <textarea name="q3" required></textarea><br><br>
+
+    <button type="submit">Submit Application</button>
+    </form>
+    """
 
 # ---------------- SUBMIT ----------------
-@app.post("/submit")
+@app.post("/submit", response_class=HTMLResponse)
 async def submit(
     name: str = Form(...),
     phone: str = Form(...),
@@ -104,13 +116,16 @@ async def submit(
     state: str = Form(...),
     district: str = Form(...),
     area: str = Form(...),
-    answers: str = Form(...),
+    q1: str = Form(...),
+    q2: str = Form(...),
+    q3: str = Form(...),
     resume: UploadFile = File(...)
 ):
-    resume_path = f"{UPLOAD_DIR}/{resume.filename}"
+    resume_path = f"{UPLOAD_DIR}/{datetime.now().timestamp()}_{resume.filename}"
     with open(resume_path, "wb") as f:
         f.write(await resume.read())
 
+    answers = f"Q1:{q1}\nQ2:{q2}\nQ3:{q3}"
     result = ai_evaluate(role, answers)
 
     row = {
@@ -125,31 +140,19 @@ async def submit(
         "District": district,
         "Area": area,
         "AI Result": result,
-        "Resume": resume.filename
+        "Resume": resume_path
     }
 
     if os.path.exists(EXCEL_FILE):
         df = pd.read_excel(EXCEL_FILE)
-        df = df.append(row, ignore_index=True)
+        df = pd.concat([df, pd.DataFrame([row])])
     else:
         df = pd.DataFrame([row])
 
     df.to_excel(EXCEL_FILE, index=False)
 
-    return JSONResponse({
-        "status": "submitted",
-        "result": result
-    })
-
-# ---------------- ADMIN ----------------
-@app.get("/admin")
-def admin():
-    if not os.path.exists(EXCEL_FILE):
-        return {"message": "No applications yet"}
-    df = pd.read_excel(EXCEL_FILE)
-    return df.to_dict(orient="records")
-
-# ---------------- RUN ----------------
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    return f"""
+    <h2>Application Submitted</h2>
+    <b>Status:</b> {result}<br><br>
+    <a href="/apply">Apply Another</a>
+    """
