@@ -1,145 +1,210 @@
-from fastapi import FastAPI, Form, UploadFile, File
-from fastapi.responses import HTMLResponse, JSONResponse
-import pandas as pd, os, time, random, smtplib
-from email.message import EmailMessage
+# =========================
+# Velvoro Job AI - A to Z
+# =========================
+
+from fastapi import FastAPI, Request, Form, UploadFile, File
+from fastapi.responses import HTMLResponse, RedirectResponse
+import pandas as pd
+import os, shutil
 import google.generativeai as genai
 
-# ================= CONFIG =================
-app = FastAPI(title="Velvoro Job AI Platform")
-
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-USERS = "users.xlsx"
-JOBS = "jobs.xlsx"
-APPS = "applications.xlsx"
-OTP_FILE = "otp.xlsx"
-
+# -------------------------
+# CONFIG
+# -------------------------
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-# ================= INIT FILES =================
-def init(file, cols):
-    if not os.path.exists(file):
-        pd.DataFrame(columns=cols).to_excel(file, index=False)
+UPLOAD_DIR = "uploads"
+EXCEL_FILE = "applications.xlsx"
+ADMIN_USER = "admin"
+ADMIN_PASS = os.getenv("ADMIN_PASS", "admin123")
 
-init(USERS, ["email","role"])
-init(JOBS, ["company","role","location","status"])
-init(APPS, ["name","email","role","score","result","resume"])
-init(OTP_FILE, ["email","otp","time"])
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# ================= EMAIL =================
-def send_email(to, subject, body):
-    msg = EmailMessage()
-    msg["From"] = os.getenv("EMAIL_USER")
-    msg["To"] = to
-    msg["Subject"] = subject
-    msg.set_content(body)
+app = FastAPI(title="Velvoro Job AI")
 
-    server = smtplib.SMTP(os.getenv("EMAIL_HOST"), int(os.getenv("EMAIL_PORT")))
-    server.starttls()
-    server.login(os.getenv("EMAIL_USER"), os.getenv("EMAIL_PASS"))
-    server.send_message(msg)
-    server.quit()
+# -------------------------
+# DATA
+# -------------------------
+EXPERIENCE = [f"{i} Years" for i in range(0, 31)]
 
-# ================= OTP =================
-@app.post("/send-otp")
-def send_otp(email:str=Form(...)):
-    otp = random.randint(100000, 999999)
-    df = pd.read_excel(OTP_FILE)
-    df.loc[len(df)] = [email, otp, time.time()]
-    df.to_excel(OTP_FILE, index=False)
+QUALIFICATIONS = [
+    "B.Tech", "MCA", "B.Pharmacy", "M.Pharmacy",
+    "Diploma", "MBA", "B.Sc", "M.Sc", "Other"
+]
 
-    send_email(
-        email,
-        "Velvoro Login OTP",
-        f"Your OTP is {otp}. Valid for 5 minutes."
-    )
-    return {"message":"OTP sent"}
+JOB_ROLES = {
+    "Python Developer": [
+        "Explain list vs tuple",
+        "What is virtualenv?",
+        "Explain OOP"
+    ],
+    "Java Developer": [
+        "What is JVM?",
+        "Explain Spring Boot",
+        "Difference between JDK & JRE"
+    ],
+    "HR": [
+        "What is recruitment lifecycle?",
+        "How do you handle conflict?",
+        "What is employee engagement?"
+    ],
+    "Marketing": [
+        "Explain digital marketing",
+        "What is SEO?",
+        "How do you generate leads?"
+    ],
+    "Pharmacy": [
+        "What is bioavailability?",
+        "Explain GMP",
+        "Difference between B.Pharm & D.Pharm"
+    ]
+}
 
-@app.post("/verify-otp")
-def verify_otp(email:str=Form(...), otp:int=Form(...)):
-    df = pd.read_excel(OTP_FILE)
-    row = df[(df.email==email) & (df.otp==otp)]
+# -------------------------
+# AI EVALUATION
+# -------------------------
+def ai_evaluate(role, answers):
+    model = genai.GenerativeModel("gemini-pro")
+    prompt = f"""
+    Role: {role}
+    Answers: {answers}
 
-    if row.empty:
-        return {"status":"failed"}
+    Decide candidate is QUALIFIED or NOT QUALIFIED.
+    Reply only one word.
+    """
+    res = model.generate_content(prompt)
+    return res.text.strip()
 
-    if time.time() - row.time.values[0] > 300:
-        return {"status":"expired"}
-
-    return {"status":"success"}
-
-# ================= AI =================
-def ai_score(role, answers):
-    try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        r = model.generate_content(
-            f"Evaluate answers for {role} and give score out of 100:\n{answers}"
-        ).text
-        return int("".join(filter(str.isdigit, r))[:2] or 60)
-    except:
-        return 60
-
-# ================= APPLY =================
+# -------------------------
+# APPLY PAGE
+# -------------------------
 @app.get("/apply", response_class=HTMLResponse)
-def apply():
-    jobs = pd.read_excel(JOBS).role.tolist()
-    options = "".join(f"<option>{j}</option>" for j in jobs)
-
+def apply_page():
     return f"""
-    <form action="/submit" method="post" enctype="multipart/form-data">
-    Name:<input name="name"><br>
-    Email:<input name="email"><br>
-    Role:<select name="role">{options}</select><br>
-    Q1:<textarea name="q1"></textarea><br>
-    Q2:<textarea name="q2"></textarea><br>
-    Resume:<input type="file" name="resume"><br>
-    <button>Apply</button>
+    <h2>AI Powered Job Application – Velvoro Software Solution</h2>
+    <form method="post" enctype="multipart/form-data">
+    
+    Name: <input name="name"><br><br>
+    Phone: <input name="phone"><br><br>
+    Email: <input name="email"><br><br>
+
+    Experience:
+    <select name="experience">
+        {''.join([f"<option>{e}</option>" for e in EXPERIENCE])}
+    </select><br><br>
+
+    Qualification:
+    <select name="qualification">
+        {''.join([f"<option>{q}</option>" for q in QUALIFICATIONS])}
+    </select><br><br>
+
+    Job Role:
+    <select name="job_role">
+        {''.join([f"<option>{r}</option>" for r in JOB_ROLES.keys()])}
+    </select><br><br>
+
+    Country: <input name="country"><br><br>
+    State: <input name="state"><br><br>
+    District: <input name="district"><br><br>
+    Area: <input name="area"><br><br>
+
+    Resume: <input type="file" name="resume"><br><br>
+
+    Q1: <textarea name="q1"></textarea><br>
+    Q2: <textarea name="q2"></textarea><br>
+    Q3: <textarea name="q3"></textarea><br><br>
+
+    <button type="submit">Apply</button>
     </form>
     """
 
-@app.post("/submit")
-async def submit(
-    name:str=Form(...),
-    email:str=Form(...),
-    role:str=Form(...),
-    q1:str=Form(...),
-    q2:str=Form(...),
-    resume:UploadFile=File(...)
+# -------------------------
+# APPLY SUBMIT
+# -------------------------
+@app.post("/apply")
+def apply_submit(
+    name: str = Form(...),
+    phone: str = Form(...),
+    email: str = Form(...),
+    experience: str = Form(...),
+    qualification: str = Form(...),
+    job_role: str = Form(...),
+    country: str = Form(...),
+    state: str = Form(...),
+    district: str = Form(...),
+    area: str = Form(...),
+    q1: str = Form(...),
+    q2: str = Form(...),
+    q3: str = Form(...),
+    resume: UploadFile = File(...)
 ):
-    path = f"{UPLOAD_DIR}/{time.time()}_{resume.filename}"
-    with open(path,"wb") as f:
-        f.write(await resume.read())
+    resume_path = f"{UPLOAD_DIR}/{resume.filename}"
+    with open(resume_path, "wb") as f:
+        shutil.copyfileobj(resume.file, f)
 
-    score = ai_score(role, q1+q2)
-    result = "QUALIFIED" if score>=70 else "NOT QUALIFIED"
+    answers = f"{q1} | {q2} | {q3}"
+    result = ai_evaluate(job_role, answers)
 
-    df = pd.read_excel(APPS)
-    df.loc[len(df)] = [name,email,role,score,result,path]
-    df.to_excel(APPS, index=False)
+    data = {
+        "Name": name,
+        "Phone": phone,
+        "Email": email,
+        "Experience": experience,
+        "Qualification": qualification,
+        "Job Role": job_role,
+        "Country": country,
+        "State": state,
+        "District": district,
+        "Area": area,
+        "AI Result": result,
+        "Resume": resume.filename
+    }
 
-    send_email(
-        email,
-        "Velvoro Job Application Result",
-        f"Your Score: {score}\nStatus: {result}"
-    )
+    df = pd.DataFrame([data])
+    if os.path.exists(EXCEL_FILE):
+        df.to_excel(EXCEL_FILE, index=False, mode="a", header=False)
+    else:
+        df.to_excel(EXCEL_FILE, index=False)
 
-    return {"score":score,"result":result}
+    return {
+        "status": "Application Submitted",
+        "AI_Result": result
+    }
 
-# ================= ADMIN =================
-@app.get("/admin")
+# -------------------------
+# ADMIN LOGIN
+# -------------------------
+@app.get("/admin", response_class=HTMLResponse)
+def admin_login():
+    return """
+    <h2>Admin Login</h2>
+    <form method="post">
+    Username: <input name="username"><br>
+    Password: <input name="password"><br>
+    <button>Login</button>
+    </form>
+    """
+
+@app.post("/admin")
+def admin_auth(username: str = Form(...), password: str = Form(...)):
+    if username == ADMIN_USER and password == ADMIN_PASS:
+        return RedirectResponse("/admin/dashboard", status_code=302)
+    return {"error": "Invalid Login"}
+
+# -------------------------
+# ADMIN DASHBOARD
+# -------------------------
+@app.get("/admin/dashboard", response_class=HTMLResponse)
 def admin_dashboard():
-    df = pd.read_excel(APPS).sort_values("score", ascending=False)
-    return df.to_dict(orient="records")
+    if not os.path.exists(EXCEL_FILE):
+        return "No Applications Yet"
 
-# ================= COMPANY =================
-@app.post("/post-job")
-def post_job(
-    company:str=Form(...),
-    role:str=Form(...),
-    location:str=Form(...)
-):
-    df = pd.read_excel(JOBS)
-    df.loc[len(df)] = [company, role, location, "FREE"]
-    df.to_excel(JOBS, index=False)
-    return {"message":"Job posted successfully"}
+    df = pd.read_excel(EXCEL_FILE)
+    return df.to_html()
+
+# -------------------------
+# ROOT
+# -------------------------
+@app.get("/")
+def root():
+    return {"message": "Velvoro Job AI Running"}
