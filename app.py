@@ -1,68 +1,59 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI
+from pydantic import BaseModel
 import pandas as pd
 import os
 from datetime import datetime
 
-app = FastAPI(title="Velvoro Job AI")
+app = FastAPI()
 
 EXCEL_FILE = "applications.xlsx"
 
-# ---------------------------
-# INIT EXCEL FILE
-# ---------------------------
+# ----------------------------
+# INIT EXCEL
+# ----------------------------
 if not os.path.exists(EXCEL_FILE):
     df = pd.DataFrame(columns=[
-        "Name",
-        "Phone",
-        "Email",
-        "Experience",
-        "Qualification",
-        "JobRole",
-        "Skills",
-        "AI_Score",
-        "CreatedAt"
+        "Name", "Email", "Phone",
+        "JobRole", "Experience",
+        "Score", "CreatedAt"
     ])
     df.to_excel(EXCEL_FILE, index=False)
 
-# ---------------------------
-# HEALTH CHECK (IMPORTANT)
-# ---------------------------
+
+# ----------------------------
+# HEALTH CHECK
+# ----------------------------
 @app.get("/")
-def health():
-    return {"status": "Velvoro Job AI is running 🚀"}
+def root():
+    return {"status": "Velvoro Job AI running 🚀"}
 
-# ---------------------------
-# 1️⃣ JOB APPLY API
-# ---------------------------
-@app.post("/job/apply")
-async def apply_job(request: Request):
-    data = await request.json()
 
-    name = data.get("name")
-    phone = data.get("phone")
-    email = data.get("email")
-    experience = data.get("experience")
-    qualification = data.get("qualification")
-    jobrole = data.get("jobrole")
-    skills = data.get("skills")
+# ----------------------------
+# REQUEST MODEL
+# ----------------------------
+class JobRequest(BaseModel):
+    name: str
+    email: str
+    phone: str
+    job_role: str
+    experience: int
 
-    # Simple AI scoring logic
-    score = 0
-    if experience:
-        score += int(experience) * 10
-    if skills:
-        score += len(skills.split(",")) * 5
+
+# ----------------------------
+# JOB API
+# ----------------------------
+@app.post("/job")
+def submit_job(data: JobRequest):
+
+    score = evaluate_score(data.experience)
 
     new_row = {
-        "Name": name,
-        "Phone": phone,
-        "Email": email,
-        "Experience": experience,
-        "Qualification": qualification,
-        "JobRole": jobrole,
-        "Skills": skills,
-        "AI_Score": score,
+        "Name": data.name,
+        "Email": data.email,
+        "Phone": data.phone,
+        "JobRole": data.job_role,
+        "Experience": data.experience,
+        "Score": score,
         "CreatedAt": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
 
@@ -71,29 +62,28 @@ async def apply_job(request: Request):
     df.to_excel(EXCEL_FILE, index=False)
 
     return {
-        "message": "Application submitted successfully",
-        "ai_score": score
+        "message": "Job application saved",
+        "score": score
     }
 
-# ---------------------------
-# 2️⃣ AI EVALUATION API
-# ---------------------------
-@app.post("/evaluate")
-async def evaluate(data: dict):
-    experience = data.get("experience", 0)
-    skills = data.get("skills", "")
 
-    score = int(experience) * 10 + len(skills.split(",")) * 5
+# ----------------------------
+# AI EVALUATION (simple logic)
+# ----------------------------
+def evaluate_score(experience: int):
+    if experience >= 5:
+        return 90
+    elif experience >= 3:
+        return 75
+    elif experience >= 1:
+        return 60
+    else:
+        return 40
 
-    return {
-        "ai_score": score,
-        "status": "evaluated"
-    }
 
-# ---------------------------
-# 3️⃣ ADMIN – VIEW ALL DATA
-# ---------------------------
-@app.get("/admin/applications")
-def get_all_applications():
-    df = pd.read_excel(EXCEL_FILE)
-    return JSONResponse(content=df.to_dict(orient="records"))
+# ----------------------------
+# EVALUATE API
+# ----------------------------
+@app.get("/evaluate/{experience}")
+def evaluate(experience: int):
+    return {"score": evaluate_score(experience)}
