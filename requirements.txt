@@ -1,5 +1,9 @@
 fastapi
 uvicorn
 pandas
-openpyxl
+scikit-learn
+requests
+beautifulsoup4
+jinja2
 python-multipart
+openpyxl
