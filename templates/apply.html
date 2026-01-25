@@ -1,96 +1,53 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Velvoro Software Solution – AI Job Application</title>
-    <style>
-        body { font-family: Arial; background:#f5f7fa; }
-        .box { width:800px; margin:auto; background:#fff; padding:20px; }
-        h2 { background:#004aad; color:#fff; padding:10px; }
-        input, select, textarea {
-            width:100%; padding:8px; margin:6px 0;
-        }
-        button {
-            background:#004aad; color:white; padding:10px; border:none;
-        }
-    </style>
+    <title>Apply Job</title>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+<h2>Job Application</h2>
 
-<div class="box">
-<h2>AI Powered Job Application – Velvoro Software Solution</h2>
+<form method="post" enctype="multipart/form-data">
 
-<form method="post" action="/apply">
+    <label>Name</label>
+    <input type="text" name="name" required>
 
-<input name="name" placeholder="Full Name" required>
-<input name="phone" placeholder="Phone Number" required>
-<input name="email" placeholder="Email ID" required>
+    <label>Email</label>
+    <input type="email" name="email" required>
 
-<select name="experience">
-<option value="0">0 Years</option>
-<option value="1">1 Year</option>
-<option value="2">2 Years</option>
-<option value="3">3 Years</option>
-<option value="4">4 Years</option>
-<option value="5">5+ Years</option>
-</select>
+    <label>Job Role</label>
+    <select name="role">
+        <option>Python Developer</option>
+        <option>Java Developer</option>
+        <option>Data Analyst</option>
+        <option>Pharma Executive</option>
+        <option>B.Pharmacy</option>
+        <option>M.Pharmacy</option>
+        <option>Clinical Research</option>
+    </select>
 
-<select name="qualification">
-<option>B.Tech</option>
-<option>MCA</option>
-<option>M.Tech</option>
-<option>B.Sc</option>
-<option>M.Sc</option>
-<option>Diploma</option>
-<option>Other</option>
-</select>
+    <label>Experience (Years)</label>
+    <select name="experience">
+        {% for i in range(0,31) %}
+        <option>{{ i }}</option>
+        {% endfor %}
+    </select>
 
-<select name="role">
-<option>Python Developer</option>
-<option>Java Developer</option>
-<option>Full Stack Developer</option>
-<option>Frontend Developer</option>
-<option>Backend Developer</option>
-<option>Data Analyst</option>
-<option>AI / ML Engineer</option>
-<option>HR Executive</option>
-<option>Recruiter</option>
-</select>
+    <label>Qualification</label>
+    <input type="text" name="qualification">
 
-<select name="country">
-<option>India</option>
-<option>USA</option>
-<option>UK</option>
-<option>Canada</option>
-<option>UAE</option>
-</select>
+    <label>Why should we hire you?</label>
+    <textarea name="q1"></textarea>
 
-<select name="state">
-<option>Andhra Pradesh</option>
-<option>Telangana</option>
-<option>Karnataka</option>
-<option>Tamil Nadu</option>
-<option>Maharashtra</option>
-</select>
+    <label>Skills & Strengths</label>
+    <textarea name="q2"></textarea>
 
-<select name="district">
-<option>Hyderabad</option>
-<option>Bengaluru</option>
-<option>Chennai</option>
-<option>Vijayawada</option>
-<option>Guntur</option>
-</select>
+    <label>Resume</label>
+    <input type="file" name="resume" required>
 
-<input name="area" placeholder="Area / Locality">
-
-<h3>AI Professional Screening</h3>
-<textarea name="q1" placeholder="Explain your core skills" required></textarea>
-<textarea name="q2" placeholder="Real-time problem you solved" required></textarea>
-<textarea name="q3" placeholder="Why should we hire you?" required></textarea>
-
-<button type="submit">Submit Application</button>
+    <button type="submit">Submit</button>
 
 </form>
-</div>
 
 </body>
 </html>
