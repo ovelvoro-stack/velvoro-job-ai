@@ -1,7 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
 <h2>Admin Dashboard</h2>
-<table border="1">
-<tr>{% for k in rows[0].keys() %}<th>{{k}}</th>{% endfor %}</tr>
-{% for r in rows %}
-<tr>{% for v in r.values() %}<td>{{v}}</td>{% endfor %}</tr>
+
+<table>
+<tr>
+    <th>Name</th>
+    <th>Email</th>
+    <th>Role</th>
+    <th>Experience</th>
+    <th>Qualification</th>
+    <th>Resume</th>
+</tr>
+
+{% for r in records %}
+<tr>
+    <td>{{ r.Name }}</td>
+    <td>{{ r.Email }}</td>
+    <td>{{ r.Role }}</td>
+    <td>{{ r.Experience }}</td>
+    <td>{{ r.Qualification }}</td>
+    <td>{{ r.Resume }}</td>
+</tr>
 {% endfor %}
+
 </table>
+
+</body>
+</html>
