@@ -1,78 +1,71 @@
-from fastapi import FastAPI, Form
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Request, Form, Depends
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
+
+from database import SessionLocal, engine
+from models import Base, Application, Admin
+from auth import hash_password, verify_password
 
 app = FastAPI(title="Velvoro Job AI")
+templates = Jinja2Templates(directory="templates")
 
-# TEMP STORAGE (In-Memory)
-applications = []
+Base.metadata.create_all(bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 # ---------------- HOME ----------------
 @app.get("/", response_class=HTMLResponse)
-def home():
-    return """
-    <h1>🚀 Velvoro Job AI</h1>
-    <ul>
-        <li><a href="/apply">Apply Job</a></li>
-        <li><a href="/admin">Admin Dashboard</a></li>
-    </ul>
-    """
+def home(request: Request):
+    return templates.TemplateResponse("home.html", {"request": request})
 
-# ---------------- APPLY FORM ----------------
+# ---------------- APPLY ----------------
 @app.get("/apply", response_class=HTMLResponse)
-def apply_form():
-    return """
-    <h2>Job Apply</h2>
-    <form method="post" action="/apply">
-        Name: <input type="text" name="name" required><br><br>
-        Email: <input type="email" name="email" required><br><br>
-        Role:
-        <select name="role">
-            <option>IT</option>
-            <option>Non-IT</option>
-            <option>Pharma</option>
-        </select><br><br>
-        <button type="submit">Apply</button>
-    </form>
-    """
+def apply_form(request: Request):
+    return templates.TemplateResponse("apply.html", {"request": request})
 
-@app.post("/apply", response_class=HTMLResponse)
-def apply_submit(
+@app.post("/apply")
+def submit_apply(
     name: str = Form(...),
     email: str = Form(...),
-    role: str = Form(...)
+    role: str = Form(...),
+    q1: str = Form(...),
+    q2: str = Form(...),
+    db: Session = Depends(get_db)
 ):
-    applications.append({
-        "name": name,
-        "email": email,
-        "role": role
-    })
+    app_data = Application(
+        name=name, email=email, role=role, q1=q1, q2=q2
+    )
+    db.add(app_data)
+    db.commit()
+    return RedirectResponse("/apply", status_code=302)
 
-    return """
-    <h3>✅ Application Submitted Successfully</h3>
-    <a href="/">Go Home</a>
-    """
-
-# ---------------- ADMIN ----------------
+# ---------------- ADMIN LOGIN ----------------
 @app.get("/admin", response_class=HTMLResponse)
-def admin():
-    html = "<h2>📋 Admin Dashboard</h2>"
+def admin_login(request: Request):
+    return templates.TemplateResponse("admin_login.html", {"request": request})
 
-    if not applications:
-        html += "<p>No applications yet</p>"
-    else:
-        html += "<table border='1' cellpadding='8'>"
-        html += "<tr><th>Name</th><th>Email</th><th>Role</th></tr>"
+@app.post("/admin")
+def admin_auth(
+    username: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    admin = db.query(Admin).filter(Admin.username == username).first()
+    if admin and verify_password(password, admin.password):
+        return RedirectResponse("/dashboard", status_code=302)
+    return RedirectResponse("/admin", status_code=302)
 
-        for app_data in applications:
-            html += f"""
-            <tr>
-                <td>{app_data['name']}</td>
-                <td>{app_data['email']}</td>
-                <td>{app_data['role']}</td>
-            </tr>
-            """
-
-        html += "</table>"
-
-    html += "<br><a href='/'>Home</a>"
-    return html
+# ---------------- DASHBOARD ----------------
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard(request: Request, db: Session = Depends(get_db)):
+    apps = db.query(Application).all()
+    return templates.TemplateResponse(
+        "admin_dashboard.html",
+        {"request": request, "applications": apps}
+    )
