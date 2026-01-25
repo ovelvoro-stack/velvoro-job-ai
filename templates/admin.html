@@ -1,0 +1,7 @@
+<h2>Admin Dashboard</h2>
+<table border="1">
+<tr>{% for k in rows[0].keys() %}<th>{{k}}</th>{% endfor %}</tr>
+{% for r in rows %}
+<tr>{% for v in r.values() %}<td>{{v}}</td>{% endfor %}</tr>
+{% endfor %}
+</table>
