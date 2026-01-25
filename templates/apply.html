@@ -2,40 +2,38 @@
 <html>
 <head>
     <title>Apply Job</title>
-    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <h2>Job Application Form</h2>
 
-<form action="/submit" method="post" enctype="multipart/form-data">
-    <input name="name" placeholder="Full Name" required><br>
-    <input name="email" placeholder="Email" required><br>
-    <input name="phone" placeholder="Phone" required><br>
+<form method="post" action="/apply" enctype="multipart/form-data">
+    Name:<br>
+    <input type="text" name="name" required><br><br>
 
-    <select name="experience">
-        {% for i in range(0,31) %}
-        <option>{{i}} Years</option>
-        {% endfor %}
-    </select><br>
+    Email:<br>
+    <input type="email" name="email" required><br><br>
 
-    <select name="qualification">
-        <option>B.Tech</option>
-        <option>MCA</option>
-        <option>BCA</option>
+    Job Role:<br>
+    <select name="role">
+        <option>Python Developer</option>
+        <option>Java Developer</option>
+        <option>HR Executive</option>
+        <option>Marketing Executive</option>
         <option>B.Pharmacy</option>
         <option>M.Pharmacy</option>
-        <option>Other</option>
-    </select><br>
+    </select><br><br>
 
-    <input name="job_role" placeholder="Job Role"><br>
-    <input name="country" placeholder="Country"><br>
-    <input name="state" placeholder="State"><br>
-    <input name="district" placeholder="District"><br>
-    <input name="area" placeholder="Area / Locality"><br>
+    Q1:<br>
+    <textarea name="q1" required></textarea><br><br>
 
+    Q2:<br>
+    <textarea name="q2" required></textarea><br><br>
+
+    Resume:<br>
     <input type="file" name="resume" required><br><br>
 
-    <button type="submit">Submit Application</button>
+    <button type="submit">Apply</button>
 </form>
+
 </body>
 </html>
