@@ -1,52 +1,60 @@
-from fastapi import FastAPI, Request, Form, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
-import os
+from fastapi import FastAPI, Request, Form
+from fastapi.responses import HTMLResponse
 
 app = FastAPI(title="Velvoro Job AI")
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
-
-UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
 # ---------------- HOME ----------------
 @app.get("/", response_class=HTMLResponse)
-def home(request: Request):
-    return templates.TemplateResponse(
-        "home.html",
-        {"request": request}
-    )
+def home():
+    return """
+    <h1>🚀 Velvoro Job AI</h1>
+    <ul>
+        <li><a href="/apply">Apply Job</a></li>
+        <li><a href="/admin">Admin Dashboard</a></li>
+    </ul>
+    """
 
 # ---------------- APPLY FORM ----------------
 @app.get("/apply", response_class=HTMLResponse)
-def apply_form(request: Request):
-    return templates.TemplateResponse(
-        "apply.html",
-        {"request": request}
-    )
+def apply_form():
+    return """
+    <h2>Job Apply</h2>
+    <form method="post" action="/apply">
+        Name: <input type="text" name="name"><br><br>
+        Email: <input type="email" name="email"><br><br>
+        Role:
+        <select name="role">
+            <option>IT</option>
+            <option>Non-IT</option>
+            <option>Pharma</option>
+        </select><br><br>
+        <button type="submit">Apply</button>
+    </form>
+    """
 
-@app.post("/apply")
-async def apply_submit(
+@app.post("/apply", response_class=HTMLResponse)
+def apply_submit(
     name: str = Form(...),
     email: str = Form(...),
-    role: str = Form(...),
-    q1: str = Form(...),
-    q2: str = Form(...),
-    resume: UploadFile = File(...)
+    role: str = Form(...)
 ):
-    file_path = os.path.join(UPLOAD_DIR, resume.filename)
-    with open(file_path, "wb") as f:
-        f.write(await resume.read())
-
-    return RedirectResponse(url="/", status_code=302)
+    return f"""
+    <h3>✅ Application Submitted</h3>
+    <p>Name: {name}</p>
+    <p>Email: {email}</p>
+    <p>Role: {role}</p>
+    <a href="/">Go Home</a>
+    """
 
 # ---------------- ADMIN ----------------
 @app.get("/admin", response_class=HTMLResponse)
-def admin_dashboard(request: Request):
-    files = os.listdir(UPLOAD_DIR)
-    return templates.TemplateResponse(
-        "admin.html",
-        {"request": request, "files": files}
-    )
+def admin():
+    return """
+    <h2>Admin Dashboard</h2>
+    <p>Coming Soon 🚧</p>
+    <ul>
+        <li>Total Applications</li>
+        <li>AI Ranking</li>
+        <li>Payments</li>
+    </ul>
+    """
