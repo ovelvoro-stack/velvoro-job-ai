@@ -1,199 +1,164 @@
-from flask import Flask, request, redirect, session, render_template_string
-import csv, os, datetime, smtplib
+from flask import Flask, request, redirect, url_for, render_template_string
+import smtplib
 from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
 app = Flask(__name__)
-app.secret_key = "velvoro_final_secret"
 
-DATA = "data"
-os.makedirs(DATA, exist_ok=True)
+# -------------------------------
+# In-memory storage (simple & safe)
+# -------------------------------
+applications = []
 
-APP_CSV = f"{DATA}/applications.csv"
-PAY_CSV = f"{DATA}/payments.csv"
-SUB_CSV = f"{DATA}/subscriptions.csv"
-
-# ---------------- INIT CSV ----------------
-def init():
-    if not os.path.exists(APP_CSV):
-        with open(APP_CSV,"w",newline="") as f:
-            csv.writer(f).writerow(
-                ["name","email","category","job","exp","qual","resume","quiz","date"]
-            )
-    if not os.path.exists(PAY_CSV):
-        with open(PAY_CSV,"w",newline="") as f:
-            csv.writer(f).writerow(["date","amount"])
-    if not os.path.exists(SUB_CSV):
-        with open(SUB_CSV,"w",newline="") as f:
-            csv.writer(f).writerow(["company","plan","start"])
-init()
-
-# ---------------- EMAIL CONFIG ----------------
+# -------------------------------
+# EMAIL CONFIG (SMTP)
+# -------------------------------
 SMTP_EMAIL = "yourmail@gmail.com"
-SMTP_PASS  = "your-app-password"
+SMTP_PASSWORD = "your_app_password"  # Gmail App Password
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
 
-def send_mail(to,name):
-    msg = MIMEMultipart()
-    msg["From"] = "Velvoro HR <"+SMTP_EMAIL+">"
-    msg["To"] = to
-    msg["Subject"] = "Velvoro – Application Received"
-
+def send_confirmation_email(to_email, name, job, score):
     body = f"""
-    Dear {name},
+Dear {name},
 
-    Thank you for applying at Velvoro Software Solution.
+Thank you for applying for the {job} position at Velvoro Software Solution.
 
-    Our recruitment team is reviewing your profile.
-    If shortlisted, you will be contacted shortly.
+Your resume has been reviewed by our AI system.
+Resume Score: {score}/100
 
-    Regards,
-    Velvoro HR Team
-    www.velvoro.com
-    """
-    msg.attach(MIMEText(body,"plain"))
+Our HR team will contact you if your profile matches our requirements.
 
-    s = smtplib.SMTP("smtp.gmail.com",587)
-    s.starttls()
-    s.login(SMTP_EMAIL,SMTP_PASS)
-    s.send_message(msg)
-    s.quit()
+Best Regards,
+Velvoro HR Team
+"""
 
-# ---------------- JOB DATA ----------------
-IT_JOBS = ["Python Developer","Java Developer","Data Analyst"]
-NON_IT_JOBS = ["HR Recruiter","Sales Executive"]
-QUALS = ["Any Degree","B.Tech","MBA","Inter"]
+    msg = MIMEText(body)
+    msg["Subject"] = "Velvoro Job Application – Confirmation"
+    msg["From"] = SMTP_EMAIL
+    msg["To"] = to_email
 
-# ---------------- APPLY ----------------
-@app.route("/",methods=["GET","POST"])
+    try:
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(SMTP_EMAIL, SMTP_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+    except Exception as e:
+        print("Email error:", e)
+
+# -------------------------------
+# Resume AI Scoring (Simple & Stable)
+# -------------------------------
+def resume_ai_score(resume_text, job):
+    keywords = {
+        "Python Developer": ["python", "flask", "django", "api"],
+        "Java Developer": ["java", "spring", "hibernate"],
+        "HR Recruiter": ["recruitment", "hiring", "interview"]
+    }
+
+    score = 0
+    resume_text = resume_text.lower()
+
+    for word in keywords.get(job, []):
+        if word in resume_text:
+            score += 25
+
+    return min(score, 100)
+
+# -------------------------------
+# JOB APPLY PAGE
+# -------------------------------
+@app.route("/", methods=["GET", "POST"])
 def apply():
-    if request.method=="POST":
-        f=request.form
-        quiz = "PASS" if f["quiz"]=="correct" else "FAIL"
+    if request.method == "POST":
+        name = request.form["name"]
+        email = request.form["email"]
+        job = request.form["job"]
+        resume = request.form["resume"]
 
-        with open(APP_CSV,"a",newline="") as c:
-            csv.writer(c).writerow([
-                f["name"],f["email"],f["category"],f["job"],
-                f["exp"],f["qual"],f["resume"],quiz,
-                datetime.date.today()
-            ])
+        score = resume_ai_score(resume, job)
 
-        try:
-            send_mail(f["email"],f["name"])
-        except:
-            pass
+        applications.append({
+            "name": name,
+            "email": email,
+            "job": job,
+            "score": score
+        })
 
-        return redirect("/success")
+        send_confirmation_email(email, name, job, score)
+
+        return redirect(url_for("success"))
 
     return render_template_string("""
-    <h2>Velvoro Job Application</h2>
-    <form method="post">
-    Name:<input name="name" required><br>
-    Email:<input name="email" required><br>
+<!DOCTYPE html>
+<html>
+<head>
+<title>Velvoro Job Application</title>
+</head>
+<body>
+<h2>Velvoro Job Application</h2>
+<form method="post">
+Name:<br><input name="name" required><br><br>
+Email:<br><input type="email" name="email" required><br><br>
 
-    Category:
-    <select id="cat" name="category" onchange="loadJobs()">
-      <option>IT</option><option>Non-IT</option>
-    </select><br>
+Job Role:<br>
+<select name="job">
+<option>Python Developer</option>
+<option>Java Developer</option>
+<option>HR Recruiter</option>
+</select><br><br>
 
-    Job:
-    <select id="jobs" name="job"></select><br>
+Resume (paste text):<br>
+<textarea name="resume" rows="6" cols="40" required></textarea><br><br>
 
-    Experience:
-    <select name="exp">{% for i in range(0,31) %}<option>{{i}}</option>{% endfor %}</select><br>
+<button type="submit">Apply Job</button>
+</form>
+</body>
+</html>
+""")
 
-    Qualification:
-    <select name="qual">{% for q in quals %}<option>{{q}}</option>{% endfor %}</select><br>
-
-    Resume Name:<input name="resume" required><br>
-
-    Quiz: Python is?<br>
-    <input type="radio" name="quiz" value="correct">Programming Language
-    <input type="radio" name="quiz" value="wrong">Database<br>
-
-    <button>Apply</button>
-    </form>
-
-    <script>
-    const IT={{it|safe}},NON={{non|safe}};
-    function loadJobs(){
-      let j=document.getElementById("jobs");
-      j.innerHTML="";
-      (cat.value=="IT"?IT:NON).forEach(x=>{
-        let o=document.createElement("option");
-        o.text=x;j.add(o);
-      });
-    }loadJobs();
-    </script>
-    """,it=IT_JOBS,non=NON_IT_JOBS,quals=QUALS)
-
+# -------------------------------
+# SUCCESS PAGE
+# -------------------------------
 @app.route("/success")
 def success():
-    return "<h3>Application Submitted Successfully</h3>"
+    return "<h2>Application Submitted Successfully</h2><p>Check your email for confirmation.</p>"
 
-# ---------------- ADMIN LOGIN ----------------
-@app.route("/admin",methods=["GET","POST"])
+# -------------------------------
+# ADMIN DASHBOARD
+# -------------------------------
+@app.route("/admin")
 def admin():
-    if request.method=="POST":
-        if request.form["u"]=="admin" and request.form["p"]=="admin123":
-            session["admin"]=True
-            return redirect("/dashboard")
-    return "<form method=post><input name=u><input type=password name=p><button>Login</button></form>"
+    total = len(applications)
+    avg_score = round(sum(a["score"] for a in applications) / total, 2) if total else 0
 
-# ---------------- DASHBOARD + CHART ----------------
-@app.route("/dashboard")
-def dash():
-    if not session.get("admin"): return redirect("/admin")
+    rows = ""
+    for a in applications:
+        rows += f"<tr><td>{a['name']}</td><td>{a['email']}</td><td>{a['job']}</td><td>{a['score']}</td></tr>"
 
-    days={}
-    revenue=0
-    with open(APP_CSV) as f:
-        for r in csv.DictReader(f):
-            days[r["date"]] = days.get(r["date"],0)+1
+    return render_template_string(f"""
+<!DOCTYPE html>
+<html>
+<head>
+<title>Admin Dashboard</title>
+</head>
+<body>
+<h2>Velvoro Admin Dashboard</h2>
 
-    with open(PAY_CSV) as p:
-        for r in csv.DictReader(p):
-            revenue += int(r["amount"])
+<p>Total Applications: <b>{total}</b></p>
+<p>Average Resume Score: <b>{avg_score}</b></p>
 
-    return render_template_string("""
-    <h2>Admin Dashboard</h2>
-    Revenue: ₹{{rev}}<br><br>
+<table border="1" cellpadding="5">
+<tr>
+<th>Name</th><th>Email</th><th>Job</th><th>Score</th>
+</tr>
+{rows}
+</table>
 
-    <canvas id="c" width="400" height="200"></canvas>
-    <script>
-    let d={{days|safe}};
-    let ctx=document.getElementById("c").getContext("2d");
-    let x=20;
-    Object.keys(d).forEach(k=>{
-      ctx.fillRect(x,180-d[k]*20,20,d[k]*20);
-      ctx.fillText(k,x,195);
-      x+=40;
-    });
-    </script>
+</body>
+</html>
+""")
 
-    <h3>Company Subscriptions</h3>
-    <form method="post" action="/subscribe">
-    Company:<input name="c">
-    <select name="p"><option>FREE</option><option>PRO</option></select>
-    <button>Add</button>
-    </form>
-    """,days=days,rev=revenue)
-
-# ---------------- SUBSCRIPTION ----------------
-@app.route("/subscribe",methods=["POST"])
-def sub():
-    with open(SUB_CSV,"a",newline="") as s:
-        csv.writer(s).writerow([
-            request.form["c"],request.form["p"],datetime.date.today()
-        ])
-    if request.form["p"]=="PRO":
-        with open(PAY_CSV,"a",newline="") as p:
-            csv.writer(p).writerow([datetime.date.today(),5000])
-    return redirect("/dashboard")
-
-@app.route("/logout")
-def lo():
-    session.clear()
-    return redirect("/admin")
-
-# ---------------- RUN ----------------
-app.run(host="0.0.0.0",port=10000)
+# NOTE:
+# ❌ No app.run()
+# ✅ Gunicorn will run this in production
