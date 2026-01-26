@@ -1,47 +1,22 @@
-from database import get_db
+import pandas as pd
+import os
+from config import EXCEL_DB
+
+COLUMNS = [
+    "Name","Phone","Email","Experience","Qualification",
+    "Job Role","Country","State","District","Area",
+    "AI Score","Result","Resume"
+]
 
 def init_db():
-    db = get_db()
-    c = db.cursor()
+    if not os.path.exists(EXCEL_DB):
+        df = pd.DataFrame(columns=COLUMNS)
+        df.to_excel(EXCEL_DB, index=False)
 
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT,
-        email TEXT,
-        phone TEXT,
-        password TEXT,
-        education TEXT,
-        experience TEXT,
-        role TEXT,
-        country TEXT,
-        state TEXT,
-        district TEXT,
-        resume TEXT
-    )
-    """)
+def save_candidate(data):
+    df = pd.read_excel(EXCEL_DB)
+    df = pd.concat([df, pd.DataFrame([data])], ignore_index=True)
+    df.to_excel(EXCEL_DB, index=False)
 
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS jobs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        company TEXT,
-        title TEXT,
-        role TEXT,
-        location TEXT,
-        experience TEXT,
-        qualification TEXT,
-        salary TEXT
-    )
-    """)
-
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS applications (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        job_id INTEGER,
-        status TEXT DEFAULT 'Applied'
-    )
-    """)
-
-    db.commit()
-    db.close()
+def get_all_candidates():
+    return pd.read_excel(EXCEL_DB).to_dict(orient="records")
