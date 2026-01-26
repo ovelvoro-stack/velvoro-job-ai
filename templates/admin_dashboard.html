@@ -1,18 +1,223 @@
-{% extends "base.html" %}
-{% block content %}
-<table border="1">
-<tr>
-{% for key in data[0].keys() %}
-<th>{{key}}</th>
-{% endfor %}
-</tr>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Velvoro Admin Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-{% for row in data %}
-<tr>
-{% for value in row.values() %}
-<td>{{value}}</td>
-{% endfor %}
-</tr>
-{% endfor %}
-</table>
-{% endblock %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body {
+    margin: 0;
+    font-family: "Segoe UI", Arial, sans-serif;
+    background: #f4f6f9;
+}
+
+/* HEADER */
+header {
+    background: #0d47a1;
+    color: white;
+    padding: 16px 24px;
+    font-size: 20px;
+    font-weight: bold;
+}
+
+/* LAYOUT */
+.container {
+    display: flex;
+}
+
+/* SIDEBAR */
+.sidebar {
+    width: 220px;
+    background: #1a237e;
+    color: white;
+    min-height: 100vh;
+    padding-top: 20px;
+}
+
+.sidebar a {
+    display: block;
+    color: white;
+    padding: 12px 20px;
+    text-decoration: none;
+}
+
+.sidebar a:hover {
+    background: #3949ab;
+}
+
+/* MAIN */
+.main {
+    flex: 1;
+    padding: 24px;
+}
+
+/* CARDS */
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+}
+
+.card {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+}
+
+.card h3 {
+    margin: 0;
+    font-size: 15px;
+    color: #555;
+}
+
+.card p {
+    margin-top: 10px;
+    font-size: 26px;
+    font-weight: bold;
+    color: #0d47a1;
+}
+
+/* TABLE */
+table {
+    width: 100%;
+    background: white;
+    border-collapse: collapse;
+    margin-top: 30px;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+table th, table td {
+    padding: 14px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+}
+
+table th {
+    background: #e3f2fd;
+}
+
+.status-active {
+    color: green;
+    font-weight: bold;
+}
+
+.status-expired {
+    color: red;
+    font-weight: bold;
+}
+
+/* CHART */
+.chart-box {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    margin-top: 30px;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    Velvoro Software Solution – Admin Analytics Dashboard
+</header>
+
+<div class="container">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+        <a href="#">Dashboard</a>
+        <a href="#">Companies</a>
+        <a href="#">Jobs</a>
+        <a href="#">Applications</a>
+        <a href="#">Revenue</a>
+        <a href="#">Logout</a>
+    </div>
+
+    <!-- MAIN -->
+    <div class="main">
+
+        <!-- METRICS -->
+        <div class="cards">
+            <div class="card">
+                <h3>Total Revenue</h3>
+                <p>₹ 1,25,000</p>
+            </div>
+            <div class="card">
+                <h3>Paid Companies</h3>
+                <p>18</p>
+            </div>
+            <div class="card">
+                <h3>Total Applications</h3>
+                <p>1,284</p>
+            </div>
+            <div class="card">
+                <h3>Avg Resume AI Score</h3>
+                <p>78%</p>
+            </div>
+        </div>
+
+        <!-- CHART -->
+        <div class="chart-box">
+            <h3>Daily Revenue</h3>
+            <canvas id="revenueChart"></canvas>
+        </div>
+
+        <!-- TABLE -->
+        <table>
+            <tr>
+                <th>Company</th>
+                <th>Plan</th>
+                <th>Status</th>
+                <th>Revenue</th>
+            </tr>
+            <tr>
+                <td>Velvoro Medical</td>
+                <td>Pro</td>
+                <td class="status-active">Active</td>
+                <td>₹25,000</td>
+            </tr>
+            <tr>
+                <td>ABC Technologies</td>
+                <td>Enterprise</td>
+                <td class="status-active">Active</td>
+                <td>₹50,000</td>
+            </tr>
+            <tr>
+                <td>XYZ HR Services</td>
+                <td>Free</td>
+                <td class="status-expired">Expired</td>
+                <td>₹0</td>
+            </tr>
+        </table>
+
+    </div>
+</div>
+
+<script>
+const ctx = document.getElementById('revenueChart').getContext('2d');
+
+new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+        datasets: [{
+            label: 'Revenue (₹)',
+            data: [5000, 8000, 12000, 7000, 15000, 20000, 18000],
+            borderColor: '#0d47a1',
+            backgroundColor: 'rgba(13,71,161,0.1)',
+            fill: true,
+            tension: 0.3
+        }]
+    }
+});
+</script>
+
+</body>
+</html>
