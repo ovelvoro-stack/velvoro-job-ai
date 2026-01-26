@@ -1,0 +1,4 @@
+job_id,company_id,job_title,job_type,paid
+J001,C001,Python Developer,IT,YES
+J002,C001,HR Executive,Non-IT,NO
+J003,C002,Sales Manager,Non-IT,YES
