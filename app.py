@@ -1,202 +1,199 @@
-from flask import Flask, request, redirect, url_for, render_template_string, session
-import csv, os, datetime, random, smtplib
-from email.message import EmailMessage
+from flask import Flask, request, redirect, session, render_template_string
+import csv, os, datetime, smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 app = Flask(__name__)
-app.secret_key = "velvoro_secret_key"
+app.secret_key = "velvoro_final_secret"
 
-DATA_DIR = "data"
-os.makedirs(DATA_DIR, exist_ok=True)
+DATA = "data"
+os.makedirs(DATA, exist_ok=True)
 
-FILES = {
-    "applications": f"{DATA_DIR}/applications.csv",
-    "payments": f"{DATA_DIR}/payments.csv"
-}
+APP_CSV = f"{DATA}/applications.csv"
+PAY_CSV = f"{DATA}/payments.csv"
+SUB_CSV = f"{DATA}/subscriptions.csv"
 
-# -------------------------------
-# BASIC HTML TEMPLATES (INLINE)
-# -------------------------------
+# ---------------- INIT CSV ----------------
+def init():
+    if not os.path.exists(APP_CSV):
+        with open(APP_CSV,"w",newline="") as f:
+            csv.writer(f).writerow(
+                ["name","email","category","job","exp","qual","resume","quiz","date"]
+            )
+    if not os.path.exists(PAY_CSV):
+        with open(PAY_CSV,"w",newline="") as f:
+            csv.writer(f).writerow(["date","amount"])
+    if not os.path.exists(SUB_CSV):
+        with open(SUB_CSV,"w",newline="") as f:
+            csv.writer(f).writerow(["company","plan","start"])
+init()
 
-APPLY_HTML = """
-<h2>Velvoro Job Application</h2>
-<form method="post" enctype="multipart/form-data">
-Name:<br><input name="name" required><br>
-Phone:<br><input name="phone" required><br>
-Email:<br><input name="email" required><br><br>
+# ---------------- EMAIL CONFIG ----------------
+SMTP_EMAIL = "yourmail@gmail.com"
+SMTP_PASS  = "your-app-password"
 
-Category:<br>
-<select name="category">
-<option>IT</option>
-<option>Non-IT</option>
-</select><br><br>
+def send_mail(to,name):
+    msg = MIMEMultipart()
+    msg["From"] = "Velvoro HR <"+SMTP_EMAIL+">"
+    msg["To"] = to
+    msg["Subject"] = "Velvoro – Application Received"
 
-Job Role:<br>
-<select name="job">
-<option>Python Developer</option>
-<option>Java Developer</option>
-<option>HR Recruiter</option>
-<option>Sales Executive</option>
-</select><br><br>
+    body = f"""
+    Dear {name},
 
-Experience:<br>
-<select name="exp">
-{% for i in range(0,31) %}
-<option>{{i}} Years</option>
-{% endfor %}
-</select><br><br>
+    Thank you for applying at Velvoro Software Solution.
 
-Qualification:<br>
-<select name="qualification">
-<option>Any Degree</option>
-<option>B.Tech</option>
-<option>MBA</option>
-<option>Inter</option>
-</select><br><br>
+    Our recruitment team is reviewing your profile.
+    If shortlisted, you will be contacted shortly.
 
-Resume:<br>
-<input type="file" name="resume" required><br><br>
+    Regards,
+    Velvoro HR Team
+    www.velvoro.com
+    """
+    msg.attach(MIMEText(body,"plain"))
 
-<b>Quiz</b><br>
-Q1: Python is?<br>
-<input type="radio" name="q1" value="correct">Programming Language<br>
-<input type="radio" name="q1" value="wrong">Database<br><br>
+    s = smtplib.SMTP("smtp.gmail.com",587)
+    s.starttls()
+    s.login(SMTP_EMAIL,SMTP_PASS)
+    s.send_message(msg)
+    s.quit()
 
-<button type="submit">Apply Job</button>
-</form>
-"""
+# ---------------- JOB DATA ----------------
+IT_JOBS = ["Python Developer","Java Developer","Data Analyst"]
+NON_IT_JOBS = ["HR Recruiter","Sales Executive"]
+QUALS = ["Any Degree","B.Tech","MBA","Inter"]
 
-SUCCESS_HTML = """
-<h2>Application Submitted Successfully</h2>
-<p>You will receive confirmation email.</p>
-"""
-
-ADMIN_LOGIN = """
-<h2>Admin Login</h2>
-<form method="post">
-<input name="username" placeholder="Username"><br>
-<input name="password" type="password" placeholder="Password"><br><br>
-<button>Login</button>
-</form>
-"""
-
-ADMIN_DASHBOARD = """
-<h2>Admin Dashboard</h2>
-<p>Total Applications: {{apps}}</p>
-<p>Total Revenue: ₹{{revenue}}</p>
-<a href="/admin/logout">Logout</a>
-"""
-
-# -------------------------------
-# HELPER FUNCTIONS
-# -------------------------------
-
-def resume_score(filename):
-    score = 50
-    for k in ["python","java","sql","sales","hr"]:
-        if k in filename.lower():
-            score += 10
-    return min(score,100)
-
-def quiz_score(answer):
-    return 1 if answer == "correct" else 0
-
-def send_email(to, name, job):
-    try:
-        msg = EmailMessage()
-        msg["Subject"] = "Velvoro Job Application Received"
-        msg["From"] = "Velvoro <yourmail@gmail.com>"
-        msg["To"] = to
-        msg.set_content(f"""
-Dear {name},
-
-Your application for {job} has been received.
-Our HR team will contact you.
-
-Velvoro Software Solution
-""")
-        with smtplib.SMTP_SSL("smtp.gmail.com",465) as s:
-            s.login("yourmail@gmail.com","APP_PASSWORD")
-            s.send_message(msg)
-    except:
-        pass
-
-# -------------------------------
-# ROUTES
-# -------------------------------
-
-@app.route("/", methods=["GET","POST"])
+# ---------------- APPLY ----------------
+@app.route("/",methods=["GET","POST"])
 def apply():
-    if request.method == "POST":
-        name = request.form["name"]
-        email = request.form["email"]
-        job = request.form["job"]
-        resume = request.files["resume"]
+    if request.method=="POST":
+        f=request.form
+        quiz = "PASS" if f["quiz"]=="correct" else "FAIL"
 
-        r_score = resume_score(resume.filename)
-        q_score = quiz_score(request.form.get("q1"))
-
-        with open(FILES["applications"],"a",newline="",encoding="utf-8") as f:
-            csv.writer(f).writerow([
-                name, email, job, r_score, q_score, datetime.date.today()
+        with open(APP_CSV,"a",newline="") as c:
+            csv.writer(c).writerow([
+                f["name"],f["email"],f["category"],f["job"],
+                f["exp"],f["qual"],f["resume"],quiz,
+                datetime.date.today()
             ])
 
-        send_email(email, name, job)
+        try:
+            send_mail(f["email"],f["name"])
+        except:
+            pass
+
         return redirect("/success")
 
-    return render_template_string(APPLY_HTML)
+    return render_template_string("""
+    <h2>Velvoro Job Application</h2>
+    <form method="post">
+    Name:<input name="name" required><br>
+    Email:<input name="email" required><br>
+
+    Category:
+    <select id="cat" name="category" onchange="loadJobs()">
+      <option>IT</option><option>Non-IT</option>
+    </select><br>
+
+    Job:
+    <select id="jobs" name="job"></select><br>
+
+    Experience:
+    <select name="exp">{% for i in range(0,31) %}<option>{{i}}</option>{% endfor %}</select><br>
+
+    Qualification:
+    <select name="qual">{% for q in quals %}<option>{{q}}</option>{% endfor %}</select><br>
+
+    Resume Name:<input name="resume" required><br>
+
+    Quiz: Python is?<br>
+    <input type="radio" name="quiz" value="correct">Programming Language
+    <input type="radio" name="quiz" value="wrong">Database<br>
+
+    <button>Apply</button>
+    </form>
+
+    <script>
+    const IT={{it|safe}},NON={{non|safe}};
+    function loadJobs(){
+      let j=document.getElementById("jobs");
+      j.innerHTML="";
+      (cat.value=="IT"?IT:NON).forEach(x=>{
+        let o=document.createElement("option");
+        o.text=x;j.add(o);
+      });
+    }loadJobs();
+    </script>
+    """,it=IT_JOBS,non=NON_IT_JOBS,quals=QUALS)
 
 @app.route("/success")
 def success():
-    return render_template_string(SUCCESS_HTML)
+    return "<h3>Application Submitted Successfully</h3>"
 
-# -------------------------------
-# ADMIN
-# -------------------------------
-
-@app.route("/admin", methods=["GET","POST"])
+# ---------------- ADMIN LOGIN ----------------
+@app.route("/admin",methods=["GET","POST"])
 def admin():
-    if request.method == "POST":
-        if request.form["username"] == "admin" and request.form["password"] == "admin123":
-            session["admin"] = True
-            return redirect("/admin/dashboard")
-    return render_template_string(ADMIN_LOGIN)
+    if request.method=="POST":
+        if request.form["u"]=="admin" and request.form["p"]=="admin123":
+            session["admin"]=True
+            return redirect("/dashboard")
+    return "<form method=post><input name=u><input type=password name=p><button>Login</button></form>"
 
-@app.route("/admin/dashboard")
-def admin_dashboard():
-    if not session.get("admin"):
-        return redirect("/admin")
+# ---------------- DASHBOARD + CHART ----------------
+@app.route("/dashboard")
+def dash():
+    if not session.get("admin"): return redirect("/admin")
 
-    apps = 0
-    revenue = 0
+    days={}
+    revenue=0
+    with open(APP_CSV) as f:
+        for r in csv.DictReader(f):
+            days[r["date"]] = days.get(r["date"],0)+1
 
-    if os.path.exists(FILES["applications"]):
-        apps = sum(1 for _ in open(FILES["applications"],encoding="utf-8"))
+    with open(PAY_CSV) as p:
+        for r in csv.DictReader(p):
+            revenue += int(r["amount"])
 
-    if os.path.exists(FILES["payments"]):
-        for r in csv.reader(open(FILES["payments"],encoding="utf-8")):
-            revenue += int(r[1])
+    return render_template_string("""
+    <h2>Admin Dashboard</h2>
+    Revenue: ₹{{rev}}<br><br>
 
-    return render_template_string(ADMIN_DASHBOARD, apps=apps, revenue=revenue)
+    <canvas id="c" width="400" height="200"></canvas>
+    <script>
+    let d={{days|safe}};
+    let ctx=document.getElementById("c").getContext("2d");
+    let x=20;
+    Object.keys(d).forEach(k=>{
+      ctx.fillRect(x,180-d[k]*20,20,d[k]*20);
+      ctx.fillText(k,x,195);
+      x+=40;
+    });
+    </script>
 
-@app.route("/admin/logout")
-def logout():
+    <h3>Company Subscriptions</h3>
+    <form method="post" action="/subscribe">
+    Company:<input name="c">
+    <select name="p"><option>FREE</option><option>PRO</option></select>
+    <button>Add</button>
+    </form>
+    """,days=days,rev=revenue)
+
+# ---------------- SUBSCRIPTION ----------------
+@app.route("/subscribe",methods=["POST"])
+def sub():
+    with open(SUB_CSV,"a",newline="") as s:
+        csv.writer(s).writerow([
+            request.form["c"],request.form["p"],datetime.date.today()
+        ])
+    if request.form["p"]=="PRO":
+        with open(PAY_CSV,"a",newline="") as p:
+            csv.writer(p).writerow([datetime.date.today(),5000])
+    return redirect("/dashboard")
+
+@app.route("/logout")
+def lo():
     session.clear()
     return redirect("/admin")
 
-# -------------------------------
-# PAYMENT (DUMMY PAID JOB)
-# -------------------------------
-
-@app.route("/pay")
-def pay():
-    amount = random.choice([299,499,999])
-    with open(FILES["payments"],"a",newline="") as f:
-        csv.writer(f).writerow(["Company",amount,datetime.date.today()])
-    return f"Payment Successful ₹{amount}"
-
-# -------------------------------
-# MAIN
-# -------------------------------
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+# ---------------- RUN ----------------
+app.run(host="0.0.0.0",port=10000)
