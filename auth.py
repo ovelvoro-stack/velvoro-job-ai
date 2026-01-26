@@ -1,7 +1,19 @@
-from werkzeug.security import generate_password_hash, check_password_hash
+from flask import Blueprint, render_template, request, redirect, session
 
-def hash_password(password):
-    return generate_password_hash(password)
+auth = Blueprint("auth", __name__)
 
-def verify_password(hash, password):
-    return check_password_hash(hash, password)
+ADMIN_USER = "admin"
+ADMIN_PASS = "velvoro123"
+
+@auth.route("/admin/login", methods=["GET","POST"])
+def login():
+    if request.method == "POST":
+        if request.form["username"] == ADMIN_USER and request.form["password"] == ADMIN_PASS:
+            session["admin"] = True
+            return redirect("/admin")
+    return render_template("admin_login.html")
+
+@auth.route("/admin/logout")
+def logout():
+    session.clear()
+    return redirect("/")
