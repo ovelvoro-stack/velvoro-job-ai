@@ -1,31 +1,36 @@
-from flask import Flask, request, redirect, session, url_for, render_template_string
-import csv, os, random, smtplib, razorpay
+from flask import Flask, request, redirect, session, render_template_string
+import csv, os, random
+import smtplib
 from email.mime.text import MIMEText
-import google.generativeai as genai
+from twilio.rest import Client
 
-# ---------------- APP ----------------
+# --------------------
+# FLASK APP
+# --------------------
 app = Flask(__name__)
 app.secret_key = "velvoro_secret_key"
 DB_FILE = "applications.csv"
 
-# ---------------- ENV ----------------
+# --------------------
+# ENV VARIABLES
+# --------------------
 EMAIL_SENDER = os.environ.get("EMAIL_SENDER")
 EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
-ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL")
 
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN")
+TWILIO_WHATSAPP_FROM = os.environ.get("TWILIO_WHATSAPP_FROM")
 
-razorpay_client = razorpay.Client(
-    auth=(os.environ.get("RAZORPAY_KEY_ID"),
-          os.environ.get("RAZORPAY_KEY_SECRET"))
-)
+twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
-# ---------------- UTIL ----------------
-def send_email(to, subject, body):
+# --------------------
+# UTIL FUNCTIONS
+# --------------------
+def send_email(to_email, subject, body):
     msg = MIMEText(body)
     msg["Subject"] = subject
     msg["From"] = EMAIL_SENDER
-    msg["To"] = to
+    msg["To"] = to_email
 
     server = smtplib.SMTP("smtp.gmail.com", 587)
     server.starttls()
@@ -33,145 +38,127 @@ def send_email(to, subject, body):
     server.send_message(msg)
     server.quit()
 
-def generate_ai_question(role):
-    model = genai.GenerativeModel("models/gemini-1.5-flash")
-    res = model.generate_content(f"Ask one interview question for {role}")
-    return res.text
+def send_whatsapp(to_number, message):
+    twilio_client.messages.create(
+        from_=TWILIO_WHATSAPP_FROM,
+        to=f"whatsapp:{to_number}",
+        body=message
+    )
 
-# ---------------- OTP LOGIN ----------------
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        email = request.form["email"]
-        otp = random.randint(100000, 999999)
-        session["otp"] = otp
-        session["email"] = email
-        send_email(email, "Velvoro OTP", f"Your OTP is {otp}")
-        return redirect("/verify")
+def save_application(data):
+    file_exists = os.path.isfile(DB_FILE)
+    with open(DB_FILE, "a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=data.keys())
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(data)
 
+def read_applications():
+    if not os.path.isfile(DB_FILE):
+        return []
+    with open(DB_FILE, newline="", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+# --------------------
+# ROUTES
+# --------------------
+@app.route("/")
+def home():
     return render_template_string("""
-    <h2>Login</h2>
-    <form method="post">
-      <input name="email" required>
-      <button>Send OTP</button>
+    <h2>Velvoro Job AI</h2>
+    <form method="post" action="/apply">
+      Name:<input name="name"><br>
+      Phone (+91..):<input name="phone"><br>
+      Email:<input name="email"><br>
+      Job Role:<input name="job"><br>
+      <button>Apply</button>
     </form>
+    <hr>
+    <a href="/admin">Admin Login</a>
     """)
 
+# --------------------
+# APPLY + OTP
+# --------------------
+@app.route("/apply", methods=["POST"])
+def apply():
+    otp = random.randint(100000, 999999)
+
+    session["otp"] = str(otp)
+    session["form"] = dict(request.form)
+
+    send_email(
+        request.form["email"],
+        "Your OTP - Velvoro",
+        f"Your OTP is {otp}"
+    )
+
+    send_whatsapp(
+        request.form["phone"],
+        f"Velvoro OTP: {otp}"
+    )
+
+    return redirect("/verify")
+
+# --------------------
+# VERIFY OTP
+# --------------------
 @app.route("/verify", methods=["GET", "POST"])
 def verify():
     if request.method == "POST":
-        if int(request.form["otp"]) == session.get("otp"):
-            session["user"] = session["email"]
-            return redirect("/")
+        if request.form["otp"] == session.get("otp"):
+            data = session.get("form")
+            data["status"] = "Pending"
+            save_application(data)
+            return "✅ Application submitted successfully"
+        return "❌ Wrong OTP"
+
     return render_template_string("""
-    <h3>Verify OTP</h3>
+    <h3>Enter OTP</h3>
     <form method="post">
       <input name="otp">
       <button>Verify</button>
     </form>
     """)
 
-# ---------------- JOB FORM ----------------
-@app.route("/", methods=["GET", "POST"])
-def index():
-    if "user" not in session:
-        return redirect("/login")
-
+# --------------------
+# ADMIN LOGIN (BASIC)
+# --------------------
+@app.route("/admin", methods=["GET", "POST"])
+def admin():
     if request.method == "POST":
-        role = request.form["role"]
-        question = generate_ai_question(role)
-
-        with open(DB_FILE, "a", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow([
-                random.randint(1000,9999),
-                request.form["name"],
-                session["user"],
-                role,
-                "PENDING",
-                "NO"
-            ])
-
-        return f"<h3>AI Question</h3><p>{question}</p><a href='/pay'>Pay & Post Job</a>"
+        if request.form["password"] == "admin123":
+            session["admin"] = True
+            return redirect("/dashboard")
+        return "Wrong password"
 
     return render_template_string("""
-    <h2>Post Job</h2>
+    <h3>Admin Login</h3>
     <form method="post">
-      <input name="name" placeholder="Name" required><br>
-      <input name="role" placeholder="Job Role" required><br>
-      <button>Submit</button>
+      Password:<input type="password" name="password">
+      <button>Login</button>
     </form>
     """)
 
-# ---------------- PAYMENT ----------------
-@app.route("/pay")
-def pay():
-    order = razorpay_client.order.create({
-        "amount": 29900,
-        "currency": "INR",
-        "payment_capture": 1
-    })
-    return render_template_string("""
-    <h2>Pay ₹299</h2>
-    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-    <script>
-    Razorpay({
-      key: "{{key}}",
-      amount: 29900,
-      order_id: "{{order}}"
-    }).open();
-    </script>
-    """, key=os.environ.get("RAZORPAY_KEY_ID"), order=order["id"])
+# --------------------
+# ADMIN DASHBOARD
+# --------------------
+@app.route("/dashboard")
+def dashboard():
+    if not session.get("admin"):
+        return redirect("/admin")
 
-# ---------------- ADMIN ----------------
-@app.route("/admin")
-def admin():
-    if session.get("user") != ADMIN_EMAIL:
-        return "Unauthorized"
+    rows = read_applications()
+    html = "<h2>Applications</h2><table border=1>"
+    if rows:
+        html += "<tr>" + "".join(f"<th>{k}</th>" for k in rows[0].keys()) + "</tr>"
+        for r in rows:
+            html += "<tr>" + "".join(f"<td>{v}</td>" for v in r.values()) + "</tr>"
+    html += "</table>"
+    return html
 
-    q = request.args.get("q", "").lower()
-    rows = []
-
-    with open(DB_FILE) as f:
-        reader = csv.reader(f)
-        for r in reader:
-            if q in ",".join(r).lower():
-                rows.append(r)
-
-    return render_template_string("""
-    <h2>Admin Dashboard</h2>
-    <form>
-      <input name="q" placeholder="search">
-    </form>
-    {% for r in rows %}
-      <p>{{r}}</p>
-      <a href="/approve/{{r[0]}}">Approve</a> |
-      <a href="/reject/{{r[0]}}">Reject</a>
-    {% endfor %}
-    """, rows=rows)
-
-@app.route("/approve/<id>")
-def approve(id):
-    update_status(id, "APPROVED")
-    return redirect("/admin")
-
-@app.route("/reject/<id>")
-def reject(id):
-    update_status(id, "REJECTED")
-    return redirect("/admin")
-
-def update_status(id, status):
-    rows = []
-    with open(DB_FILE) as f:
-        reader = csv.reader(f)
-        for r in reader:
-            if r and r[0] == id:
-                r[4] = status
-            rows.append(r)
-
-    with open(DB_FILE, "w", newline="") as f:
-        csv.writer(f).writerows(rows)
-
-# ---------------- RUN ----------------
+# --------------------
+# RUN
+# --------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    app.run()
