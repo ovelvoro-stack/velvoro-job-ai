@@ -1,27 +1,50 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Job Application</title>
+  <title>Apply Job</title>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+<div class="form-container">
 <h2>Job Application</h2>
 
-<form method="post">
-    Name: <input name="name"><br><br>
-    Phone: <input name="phone"><br><br>
-    Email: <input name="email"><br><br>
-    Experience: <input name="experience"><br><br>
-    Qualification: <input name="qualification"><br><br>
-    Job Role: <input name="job_role"><br><br>
-    Country: <input name="country"><br><br>
-    State: <input name="state"><br><br>
-    District: <input name="district"><br><br>
-    Area: <input name="area"><br><br>
+<form method="POST">
+<input name="name" placeholder="Full Name" required>
+<input name="phone" placeholder="Mobile Number" required>
+<input name="email" placeholder="Email" required>
 
-    <button type="submit">Submit</button>
+<select name="experience">
+  <option>Fresher</option>
+  <option>1-3 Years</option>
+  <option>3-5 Years</option>
+  <option>5+ Years</option>
+</select>
+
+<select name="qualification">
+  <option>10th</option>
+  <option>12th</option>
+  <option>Diploma</option>
+  <option>Graduate</option>
+  <option>Post Graduate</option>
+</select>
+
+<input name="job_role" placeholder="Job Role">
+
+<select name="country">
+  <option>India</option>
+  <option>USA</option>
+  <option>UK</option>
+  <option>UAE</option>
+</select>
+
+<input name="state" placeholder="State">
+<input name="district" placeholder="District">
+<input name="area" placeholder="Area">
+
+<button type="submit">Submit Application</button>
 </form>
 
-<br>
-<a href="/">Back to Home</a>
+<a href="/">⬅ Back</a>
+</div>
 </body>
 </html>
