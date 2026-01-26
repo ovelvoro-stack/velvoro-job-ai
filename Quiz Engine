@@ -1,0 +1,9 @@
+def get_quiz(company_id):
+    return [q for q in read_csv("data/company_quiz.csv") if q["company_id"] == company_id]
+
+def evaluate_quiz(questions, answers):
+    score = 0
+    for q,a in zip(questions, answers):
+        if q["answer"] == a:
+            score += 1
+    return score
