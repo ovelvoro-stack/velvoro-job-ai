@@ -1,98 +1,84 @@
-from flask import Flask, render_template, request, redirect, session
-from models import init_db
-from database import get_db
-from auth import hash_password, verify_password
-from config import SECRET_KEY
+from flask import Flask, render_template, request, redirect, url_for, session
+import pandas as pd
 import os
 
 app = Flask(__name__)
-app.secret_key = SECRET_KEY
+app.secret_key = "velvoro_secret_key"
 
-init_db()
+DATA_FILE = "data/applications.csv"
 
-# HOME
+# Ensure data folder & file exist
+os.makedirs("data", exist_ok=True)
+if not os.path.exists(DATA_FILE):
+    df = pd.DataFrame(columns=[
+        "name","phone","email","experience","qualification",
+        "job_role","country","state","district","area",
+        "ai_score","result"
+    ])
+    df.to_csv(DATA_FILE, index=False)
+
+
 @app.route("/")
 def home():
     return render_template("home.html")
 
-# JOB LIST
-@app.route("/jobs")
-def jobs():
-    db = get_db()
-    jobs = db.execute("SELECT * FROM jobs").fetchall()
-    return render_template("jobs.html", jobs=jobs)
 
-# APPLY JOB
-@app.route("/apply/<int:job_id>", methods=["GET","POST"])
-def apply(job_id):
+@app.route("/apply", methods=["GET", "POST"])
+def apply():
     if request.method == "POST":
-        name = request.form["name"]
-        resume = request.files["resume"]
-        resume_path = f"static/resumes/{resume.filename}"
-        resume.save(resume_path)
+        data = {
+            "name": request.form["name"],
+            "phone": request.form["phone"],
+            "email": request.form["email"],
+            "experience": request.form["experience"],
+            "qualification": request.form["qualification"],
+            "job_role": request.form["job_role"],
+            "country": request.form["country"],
+            "state": request.form["state"],
+            "district": request.form["district"],
+            "area": request.form["area"],
+            "ai_score": "Pending",
+            "result": "Pending"
+        }
 
-        db = get_db()
-        db.execute("""
-        INSERT INTO users (name,resume,country)
-        VALUES (?,?,?)
-        """,(name,resume_path,"India"))
-        db.commit()
+        df = pd.read_csv(DATA_FILE)
+        df = pd.concat([df, pd.DataFrame([data])], ignore_index=True)
+        df.to_csv(DATA_FILE, index=False)
 
-        return "Applied Successfully"
+        return "✅ Application Submitted Successfully"
+
     return render_template("apply.html")
 
-# REGISTER
-@app.route("/register", methods=["GET","POST"])
-def register():
-    if request.method=="POST":
-        db = get_db()
-        db.execute("""
-        INSERT INTO users (name,email,password)
-        VALUES (?,?,?)
-        """,(request.form["name"],
-             request.form["email"],
-             hash_password(request.form["password"])))
-        db.commit()
-        return redirect("/login")
-    return render_template("register.html")
 
-# LOGIN
-@app.route("/login", methods=["GET","POST"])
-def login():
-    if request.method=="POST":
-        db = get_db()
-        user = db.execute(
-            "SELECT * FROM users WHERE email=?",
-            (request.form["email"],)
-        ).fetchone()
-
-        if user and verify_password(user[4], request.form["password"]):
-            session["user"] = user[0]
-            return redirect("/profile")
-    return render_template("login.html")
-
-# PROFILE
-@app.route("/profile")
-def profile():
-    return "User Profile"
-
-# ADMIN LOGIN
-@app.route("/admin/login", methods=["GET","POST"])
+@app.route("/admin", methods=["GET", "POST"])
 def admin_login():
-    if request.method=="POST":
-        if request.form["user"]=="admin" and request.form["pass"]=="admin":
-            session["admin"]=True
-            return redirect("/admin/dashboard")
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
+
+        if username == "admin" and password == "admin123":
+            session["admin"] = True
+            return redirect(url_for("dashboard"))
+        else:
+            return "Invalid Login"
+
     return render_template("admin_login.html")
 
-# ADMIN DASHBOARD
-@app.route("/admin/dashboard")
-def admin_dashboard():
+
+@app.route("/dashboard")
+def dashboard():
     if not session.get("admin"):
-        return redirect("/admin/login")
-    db = get_db()
-    count = db.execute("SELECT COUNT(*) FROM applications").fetchone()
-    return render_template("admin_dashboard.html", count=count)
+        return redirect(url_for("admin_login"))
+
+    df = pd.read_csv(DATA_FILE)
+    return render_template("dashboard.html", tables=df.to_dict(orient="records"))
+
+
+@app.route("/logout")
+def logout():
+    session.pop("admin", None)
+    return redirect(url_for("home"))
+
 
 if __name__ == "__main__":
     app.run(debug=True)
