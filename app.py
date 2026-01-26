@@ -1,12 +1,13 @@
-from flask import Flask, request, render_template_string, session, redirect
+from flask import Flask, request, redirect, render_template_string
 import random
 import os
 import requests
+import time
 
 app = Flask(__name__)
 
-# ✅ VERY IMPORTANT (Render compatible)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "fallback-secret")
+# 🔐 In-memory OTP store (SAFE for MVP)
+otp_store = {}
 
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
 
@@ -22,6 +23,8 @@ HTML_FORM = """
 HTML_VERIFY = """
 <h2>Verify OTP</h2>
 <form method="post">
+  Email:<br>
+  <input type="email" name="email" required><br><br>
   OTP:<br>
   <input type="text" name="otp" required><br><br>
   <button type="submit">Verify</button>
@@ -34,22 +37,21 @@ HTML_SUCCESS = """
 <p>Welcome to Velvoro Job AI</p>
 """
 
-def send_email_otp(email, otp):
-    response = requests.post(
+def send_email(email, otp):
+    requests.post(
         "https://api.resend.com/emails",
         headers={
             "Authorization": f"Bearer {RESEND_API_KEY}",
-            "Content-Type": "application/json",
+            "Content-Type": "application/json"
         },
         json={
             "from": "Velvoro Job AI <onboarding@resend.dev>",
             "to": [email],
             "subject": "Velvoro Job AI – OTP",
-            "html": f"<h3>Your OTP is <b>{otp}</b></h3><p>Valid for 5 minutes</p>",
+            "html": f"<h3>Your OTP is <b>{otp}</b></h3><p>Valid for 5 minutes</p>"
         },
         timeout=10
     )
-    print("Email status:", response.status_code)
 
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -57,10 +59,13 @@ def index():
         email = request.form["email"]
         otp = str(random.randint(100000, 999999))
 
-        session["otp"] = otp
-        session["email"] = email
+        # store otp with timestamp
+        otp_store[email] = {
+            "otp": otp,
+            "time": time.time()
+        }
 
-        send_email_otp(email, otp)
+        send_email(email, otp)
         return redirect("/verify")
 
     return render_template_string(HTML_FORM)
@@ -69,10 +74,21 @@ def index():
 def verify():
     msg = ""
     if request.method == "POST":
-        if request.form["otp"] == session.get("otp"):
+        email = request.form["email"]
+        user_otp = request.form["otp"]
+
+        record = otp_store.get(email)
+
+        if not record:
+            msg = "OTP not found"
+        elif time.time() - record["time"] > 300:
+            msg = "OTP expired"
+        elif record["otp"] == user_otp:
+            otp_store.pop(email, None)
             return render_template_string(HTML_SUCCESS)
         else:
-            msg = "❌ Invalid OTP"
+            msg = "Invalid OTP"
+
     return render_template_string(HTML_VERIFY, msg=msg)
 
 if __name__ == "__main__":
