@@ -1,0 +1,37 @@
+@app.route("/apply/<company_id>", methods=["GET","POST"])
+def apply(company_id):
+    plan = get_company_plan(company_id)
+    features = plan_features(plan)
+    quiz = get_quiz(company_id)
+
+    if request.method == "POST":
+        resume_text = request.form["resume_text"]
+        ai_score = resume_score(resume_text) if features["resume_ai"]=="YES" else 0
+
+        quiz_score = 0
+        if features["quiz"]=="YES":
+            answers = request.form.getlist("q")
+            quiz_score = evaluate_quiz(quiz, answers)
+
+        final_score = ai_score + quiz_score*10
+
+        return f"Application submitted | Score: {final_score}"
+
+    return render_template_string("""
+    <form method="post">
+    Resume Text:<br>
+    <textarea name="resume_text"></textarea><br>
+
+    {% if quiz %}
+        <h3>Quiz</h3>
+        {% for q in quiz %}
+            <p>{{q.question}}</p>
+            <input type="radio" name="q" value="{{q.option_a}}">{{q.option_a}}<br>
+            <input type="radio" name="q" value="{{q.option_b}}">{{q.option_b}}<br>
+            <input type="radio" name="q" value="{{q.option_c}}">{{q.option_c}}<br>
+        {% endfor %}
+    {% endif %}
+
+    <button>Submit</button>
+    </form>
+    """, quiz=quiz)
