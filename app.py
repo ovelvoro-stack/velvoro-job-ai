@@ -1,179 +1,160 @@
-from flask import Flask, request, redirect, session, render_template_string
-import os, csv, random, time, smtplib
+from flask import Flask, request, redirect, url_for
+import csv, os, random, smtplib
 from email.mime.text import MIMEText
 
-# ===================== AI (GEMINI) =====================
-import google.generativeai as genai
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-
-def ai_score(text):
-    try:
-        model = genai.GenerativeModel("models/gemini-1.5-flash")
-        r = model.generate_content(f"Give score out of 10 for this resume:\n{text}")
-        return r.text
-    except:
-        return "AI unavailable"
-
-# ===================== TWILIO =====================
-from twilio.rest import Client
-TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID")
-TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN")
-TWILIO_WHATSAPP_FROM = os.environ.get("TWILIO_WHATSAPP_FROM")
-
-twilio = None
-if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN:
-    twilio = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-
-def send_whatsapp(phone, msg):
-    if twilio:
-        twilio.messages.create(
-            from_=TWILIO_WHATSAPP_FROM,
-            to=f"whatsapp:{phone}",
-            body=msg
-        )
-
-# ===================== EMAIL =====================
-EMAIL_SENDER = os.environ.get("EMAIL_SENDER")
-EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
-
-def send_email(to, subject, body):
-    if not EMAIL_SENDER:
-        return
-    msg = MIMEText(body)
-    msg["From"] = EMAIL_SENDER
-    msg["To"] = to
-    msg["Subject"] = subject
-
-    s = smtplib.SMTP("smtp.gmail.com", 587)
-    s.starttls()
-    s.login(EMAIL_SENDER, EMAIL_PASSWORD)
-    s.send_message(msg)
-    s.quit()
-
-# ===================== APP =====================
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "velvoro_secret")
 
-DB = "applications.csv"
-UPLOAD = "resumes"
-os.makedirs(UPLOAD, exist_ok=True)
+DATA_FILE = "candidates.csv"
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
 
-FIELDS = ["name","phone","email","job","resume","ai","status"]
+# =========================
+# SAFE EMAIL FUNCTION
+# =========================
+def send_email_safe(to_email, subject, body):
+    try:
+        sender = os.environ.get("EMAIL_SENDER")
+        password = os.environ.get("EMAIL_PASSWORD")
 
-def save_row(row):
-    exists = os.path.exists(DB)
-    with open(DB,"a",newline="",encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=FIELDS)
-        if not exists:
-            w.writeheader()
-        w.writerow(row)
+        if not sender or not password:
+            print("Email skipped: ENV not set")
+            return False
 
-def read_all():
-    if not os.path.exists(DB): return []
-    with open(DB,encoding="utf-8") as f:
-        return list(csv.DictReader(f))
+        msg = MIMEText(body)
+        msg["Subject"] = subject
+        msg["From"] = sender
+        msg["To"] = to_email
 
-def write_all(rows):
-    with open(DB,"w",newline="",encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=FIELDS)
-        w.writeheader()
-        w.writerows(rows)
+        server = smtplib.SMTP("smtp.gmail.com", 587, timeout=10)
+        server.starttls()
+        server.login(sender, password)
+        server.send_message(msg)
+        server.quit()
+        print("Email sent")
+        return True
 
-# ===================== APPLY =====================
-@app.route("/", methods=["GET","POST"])
-def apply():
-    if request.method=="POST":
-        otp = str(random.randint(100000,999999))
-        session["otp"] = otp
-        session["time"] = time.time()
+    except Exception as e:
+        print("Email failed:", e)
+        return False
 
-        resume = request.files["resume"]
-        path = os.path.join(UPLOAD, resume.filename)
-        resume.save(path)
 
-        ai = ai_score(resume.filename)
+# =========================
+# SAFE WHATSAPP (Twilio optional)
+# =========================
+def send_whatsapp_safe(phone, message):
+    try:
+        from twilio.rest import Client  # optional
 
-        session["data"] = {
-            "name": request.form["name"],
-            "phone": request.form["phone"],
-            "email": request.form["email"],
-            "job": request.form["job"],
-            "resume": resume.filename,
-            "ai": ai,
-            "status": "Pending"
-        }
+        sid = os.environ.get("TWILIO_ACCOUNT_SID")
+        token = os.environ.get("TWILIO_AUTH_TOKEN")
+        frm = os.environ.get("TWILIO_WHATSAPP_FROM")
 
-        send_whatsapp(request.form["phone"], f"Velvoro OTP: {otp}")
-        send_email(request.form["email"], "OTP", f"Your OTP: {otp}")
+        if not sid or not token or not frm:
+            print("WhatsApp skipped: ENV missing")
+            return False
 
-        return redirect("/verify")
+        client = Client(sid, token)
+        client.messages.create(
+            from_=frm,
+            to=f"whatsapp:{phone}",
+            body=message
+        )
+        print("WhatsApp sent")
+        return True
 
-    return render_template_string("""
+    except Exception as e:
+        print("WhatsApp failed:", e)
+        return False
+
+
+# =========================
+# SAVE TO CSV
+# =========================
+def save_candidate(row):
+    file_exists = os.path.exists(DATA_FILE)
+    with open(DATA_FILE, "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow([
+                "Name", "Phone", "Email", "Role",
+                "OTP", "Status"
+            ])
+        writer.writerow(row)
+
+
+# =========================
+# HOME – JOB APPLY FORM
+# =========================
+@app.route("/", methods=["GET", "POST"])
+def home():
+    if request.method == "POST":
+        name = request.form["name"]
+        phone = request.form["phone"]
+        email = request.form["email"]
+        role = request.form["role"]
+
+        otp = random.randint(100000, 999999)
+
+        save_candidate([name, phone, email, role, otp, "Pending"])
+
+        send_email_safe(email, "Your OTP", f"Your OTP is {otp}")
+        send_whatsapp_safe(phone, f"Your OTP is {otp}")
+
+        return "Application Submitted Successfully ✅"
+
+    return """
     <h2>Velvoro Job AI</h2>
-    <form method=post enctype=multipart/form-data>
-    Name<input name=name><br>
-    Phone<input name=phone><br>
-    Email<input name=email><br>
-    Job<input name=job><br>
-    Resume<input type=file name=resume><br>
-    <button>Send OTP</button>
+    <form method="post">
+      Name:<br><input name="name"><br>
+      Phone:<br><input name="phone"><br>
+      Email:<br><input name="email"><br>
+      Job Role:<br><input name="role"><br><br>
+      <button type="submit">Apply</button>
     </form>
-    <a href=/admin>Admin</a>
-    """)
+    <hr>
+    <a href="/admin">Admin Login</a>
+    """
 
-# ===================== VERIFY =====================
-@app.route("/verify", methods=["GET","POST"])
-def verify():
-    if request.method=="POST":
-        if request.form["otp"] == session.get("otp"):
-            save_row(session["data"])
-            session.clear()
-            return "Applied Successfully ✅"
-        return "Wrong OTP ❌"
 
-    return "<form method=post>OTP<input name=otp><button>Verify</button></form>"
-
-# ===================== ADMIN =====================
-@app.route("/admin", methods=["GET","POST"])
-def admin():
-    if request.method=="POST":
-        if request.form["pass"] == os.environ.get("ADMIN_PASSWORD","admin"):
-            session["admin"]=True
+# =========================
+# ADMIN LOGIN
+# =========================
+@app.route("/admin", methods=["GET", "POST"])
+def admin_login():
+    if request.method == "POST":
+        if request.form["password"] == ADMIN_PASSWORD:
             return redirect("/dashboard")
-    return "<form method=post>Password<input name=pass><button>Login</button></form>"
+        return "Wrong Password"
 
+    return """
+    <h3>Admin Login</h3>
+    <form method="post">
+      Password: <input type="password" name="password">
+      <button>Login</button>
+    </form>
+    """
+
+
+# =========================
+# ADMIN DASHBOARD
+# =========================
 @app.route("/dashboard")
 def dashboard():
-    if not session.get("admin"): return redirect("/admin")
-    rows = read_all()
-    return render_template_string("""
-    <h2>Admin Dashboard</h2>
-    <table border=1>
-    <tr><th>Name</th><th>Job</th><th>AI</th><th>Status</th><th>Action</th></tr>
-    {% for r in rows %}
-    <tr>
-    <td>{{r.name}}</td>
-    <td>{{r.job}}</td>
-    <td>{{r.ai}}</td>
-    <td>{{r.status}}</td>
-    <td>
-    <a href=/update/{{loop.index0}}/Approved>Approve</a>
-    <a href=/update/{{loop.index0}}/Rejected>Reject</a>
-    </td>
-    </tr>
-    {% endfor %}
-    </table>
-    """, rows=rows)
+    rows = []
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, encoding="utf-8") as f:
+            reader = csv.reader(f)
+            rows = list(reader)
 
-@app.route("/update/<int:i>/<s>")
-def update(i,s):
-    rows = read_all()
-    rows[i]["status"] = s
-    write_all(rows)
-    return redirect("/dashboard")
+    html = "<h2>Admin Dashboard</h2><table border=1>"
+    for r in rows:
+        html += "<tr>" + "".join(f"<td>{c}</td>" for c in r) + "</tr>"
+    html += "</table>"
 
-# ===================== RUN =====================
+    return html
+
+
+# =========================
+# MAIN
+# =========================
 if __name__ == "__main__":
-    app.run()
+    app.run(debug=True)
