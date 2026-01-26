@@ -1,67 +1,24 @@
-from fastapi import FastAPI, Request, Form, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
+from flask import Flask, render_template
 
-app = FastAPI()
-templates = Jinja2Templates(directory="templates")
+app = Flask(__name__)
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+@app.route("/")
+def home():
+    return render_template("home.html")
 
-DATABASE = []   # simple in-memory (now)
+@app.route("/apply")
+def apply():
+    return render_template("apply.html")
 
-@app.get("/", response_class=HTMLResponse)
-def home(request: Request):
-    return templates.TemplateResponse("home.html", {"request": request})
+@app.route("/admin")
+def admin():
+    return render_template("admin.html")
 
+@app.route("/dashboard")
+def dashboard():
+    return render_template("dashboard.html")
 
-@app.get("/apply", response_class=HTMLResponse)
-def apply_form(request: Request):
-    return templates.TemplateResponse("apply.html", {"request": request})
-
-
-@app.post("/apply")
-async def submit_apply(
-    request: Request,
-    name: str = Form(...),
-    phone: str = Form(...),
-    email: str = Form(...),
-    experience: int = Form(...),
-    qualification: str = Form(...),
-    role: str = Form(...),
-    answer: str = Form(...),
-    resume: UploadFile = File(...)
-):
-    result = "PASS" if len(answer) > 10 else "FAIL"
-
-    DATABASE.append({
-        "name": name,
-        "phone": phone,
-        "email": email,
-        "experience": experience,
-        "qualification": qualification,
-        "role": role,
-        "result": result
-    })
-
-    return RedirectResponse(url="/dashboard", status_code=302)
-
-
-@app.get("/admin", response_class=HTMLResponse)
-def admin_login(request: Request):
-    return templates.TemplateResponse("admin.html", {"request": request})
-
-
-@app.post("/admin")
-def admin_auth(username: str = Form(...), password: str = Form(...)):
-    if username == "admin" and password == "admin123":
-        return RedirectResponse(url="/dashboard", status_code=302)
-    return RedirectResponse(url="/admin", status_code=302)
-
-
-@app.get("/dashboard", response_class=HTMLResponse)
-def dashboard(request: Request):
-    return templates.TemplateResponse(
-        "dashboard.html",
-        {"request": request, "data": DATABASE}
-    )
+if __name__ == "__main__":
+    import os
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
