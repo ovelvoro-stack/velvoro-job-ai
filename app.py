@@ -1,69 +1,134 @@
-import os, csv
-from flask import Flask, render_template, request, redirect, session
-from werkzeug.utils import secure_filename
-
-from questions import QUESTIONS
-from ai_engine import score_resume
-from auth import auth
-from admin import admin
+import csv, os
+from flask import Flask, request, render_template_string, redirect, session
 
 app = Flask(__name__)
-app.secret_key = "velvoro_secret"
+app.secret_key = "velvoro_saas_secret"
 
-app.register_blueprint(auth)
-app.register_blueprint(admin)
-
-os.makedirs("uploads", exist_ok=True)
 os.makedirs("data", exist_ok=True)
 
-DB = "data/applications.csv"
+COMPANIES = "data/companies.csv"
+JOBS = "data/jobs.csv"
+APPS = "data/applications.csv"
 
-if not os.path.exists(DB):
-    with open(DB,"w",newline="",encoding="utf-8") as f:
-        csv.writer(f).writerow([
-            "Name","Email","JobType","Score","QuizScore","ResumeScore","Paid"
-        ])
+# ---------------- INIT FILES ----------------
+def init_file(path, header):
+    if not os.path.exists(path):
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            csv.writer(f).writerow(header)
 
-@app.route("/", methods=["GET","POST"])
-def index():
+init_file(COMPANIES, ["company_id","company_name","email","password"])
+init_file(JOBS, ["job_id","company_id","job_title","job_type","paid"])
+init_file(APPS, ["name","email","company","job","score"])
+
+# ---------------- HELPERS ----------------
+def read_csv(path):
+    with open(path, encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+# ---------------- COMPANY LOGIN ----------------
+@app.route("/company/login", methods=["GET","POST"])
+def company_login():
     if request.method == "POST":
-        session["form"] = dict(request.form)
-        session["job"] = request.form["JobType"]
-        return redirect("/questions")
-    return render_template("index.html")
+        for c in read_csv(COMPANIES):
+            if c["email"] == request.form["email"] and c["password"] == request.form["password"]:
+                session["company"] = c
+                return redirect("/company/dashboard")
+    return """
+    <h3>Company Login</h3>
+    <form method="post">
+    <input name="email"><br>
+    <input name="password" type="password"><br>
+    <button>Login</button>
+    </form>
+    """
 
-@app.route("/questions", methods=["GET","POST"])
-def questions():
-    job = session["job"]
-    qs = QUESTIONS[job]
+# ---------------- COMPANY DASHBOARD ----------------
+@app.route("/company/dashboard", methods=["GET","POST"])
+def company_dash():
+    if "company" not in session:
+        return redirect("/company/login")
+
+    company = session["company"]
 
     if request.method == "POST":
-        correct = 0
-        for i,q in enumerate(qs):
-            if request.form.get(f"q{i}") == q["answer"]:
-                correct += 1
-
-        resume_score = score_resume(session["form"].get("resume_text",""))
-        total = correct * 10
-
-        with open(DB,"a",newline="",encoding="utf-8") as f:
+        with open(JOBS,"a",newline="",encoding="utf-8") as f:
             csv.writer(f).writerow([
-                session["form"]["Name"],
-                session["form"]["Email"],
-                job,
-                total + resume_score,
-                correct,
-                resume_score,
-                "YES" if session["form"].get("Paid") else "NO"
+                "J"+str(len(read_csv(JOBS))+1),
+                company["company_id"],
+                request.form["title"],
+                request.form["type"],
+                request.form["paid"]
             ])
 
-        return redirect("/success")
+    jobs = [j for j in read_csv(JOBS) if j["company_id"] == company["company_id"]]
 
-    return render_template("questions.html", questions=qs)
+    return render_template_string("""
+    <h2>{{company.company_name}}</h2>
 
-@app.route("/success")
-def success():
-    return render_template("success.html")
+    <form method="post">
+    Job Title: <input name="title"><br>
+    Type:
+    <select name="type">
+        <option>IT</option>
+        <option>Non-IT</option>
+    </select><br>
+    Paid:
+    <select name="paid">
+        <option>YES</option>
+        <option>NO</option>
+    </select><br>
+    <button>Add Job</button>
+    </form>
 
+    <hr>
+    <h3>Your Jobs</h3>
+    {% for j in jobs %}
+        <p>{{j.job_title}} | {{j.job_type}} | Paid: {{j.paid}}</p>
+    {% endfor %}
+    """, company=company, jobs=jobs)
+
+# ---------------- PUBLIC JOB LIST ----------------
+@app.route("/", methods=["GET","POST"])
+def public_jobs():
+    jobs = read_csv(JOBS)
+    companies = {c["company_id"]:c["company_name"] for c in read_csv(COMPANIES)}
+
+    if request.method == "POST":
+        score = 50  # simple base score
+        with open(APPS,"a",newline="",encoding="utf-8") as f:
+            csv.writer(f).writerow([
+                request.form["name"],
+                request.form["email"],
+                companies[request.form["company"]],
+                request.form["job"],
+                score
+            ])
+        return "<h2>Application Submitted</h2>"
+
+    return render_template_string("""
+    <h2>Velvoro Multi-Company Jobs</h2>
+    <form method="post">
+    Name: <input name="name"><br>
+    Email: <input name="email"><br>
+
+    Company:
+    <select name="company">
+        {% for c in companies %}
+            <option value="{{c}}">{{companies[c]}}</option>
+        {% endfor %}
+    </select><br>
+
+    Job:
+    <select name="job">
+        {% for j in jobs %}
+            <option>{{j.job_title}} ({{companies[j.company_id]}})</option>
+        {% endfor %}
+    </select><br>
+
+    <button>Apply</button>
+    </form>
+    """, jobs=jobs, companies=companies)
+
+# ---------------- RUN ----------------
 if __name__ == "__main__":
     app.run()
