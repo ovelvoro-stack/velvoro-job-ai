@@ -1,6 +1,8 @@
-{% extends "base.html" %}
-{% block content %}
-<h3>Welcome to Velvoro Job AI</h3>
-<a href="/apply" class="btn btn-primary">Apply Job</a>
-<a href="/admin" class="btn btn-secondary">Admin Login</a>
-{% endblock %}
+<h2>Velvoro Job AI</h2>
+<form method="post">
+  <input name="name" placeholder="Name" required><br>
+  <input name="phone" placeholder="Phone" required><br>
+  <input name="email" placeholder="Email" required><br>
+  <input name="job_role" placeholder="Job Role" required><br>
+  <button>Apply</button>
+</form>
