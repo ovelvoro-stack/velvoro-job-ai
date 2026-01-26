@@ -1,4 +1,3 @@
 flask
 gunicorn
-twilio
-google-generativeai
+python-dotenv
