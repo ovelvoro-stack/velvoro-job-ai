@@ -1,55 +1,76 @@
 from flask import Flask, render_template, request, redirect, url_for
-import csv, os
+import csv
+import os
+from datetime import datetime
 
 app = Flask(__name__)
 
-DATA_FILE = "data/applications.csv"
+CSV_FILE = "applications.csv"
 
-def save_candidate(data):
-    file_exists = os.path.isfile(DATA_FILE)
-    with open(DATA_FILE, "a", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=data.keys())
-        if not file_exists:
-            writer.writeheader()
-        writer.writerow(data)
+
+def init_csv():
+    if not os.path.exists(CSV_FILE):
+        with open(CSV_FILE, mode="w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                "Name", "Phone", "Email", "Experience",
+                "Qualification", "Job Role",
+                "Country", "State", "District", "Area",
+                "AI Score", "Result", "Applied At"
+            ])
+
 
 @app.route("/")
-def home():
-    return render_template("home.html")
+def index():
+    return render_template("index.html")
+
 
 @app.route("/apply", methods=["GET", "POST"])
 def apply():
     if request.method == "POST":
-        data = {
-            "name": request.form["name"],
-            "phone": request.form["phone"],
-            "email": request.form["email"],
-            "experience": request.form["experience"],
-            "qualification": request.form["qualification"],
-            "job_role": request.form["job_role"],
-            "country": request.form["country"],
-            "state": request.form["state"],
-            "district": request.form["district"],
-            "area": request.form["area"],
-            "ai_score": "Pending",
-            "result": "Pending"
-        }
-        save_candidate(data)
-        return "<h2>✅ Application Submitted Successfully</h2><a href='/'>Back to Home</a>"
+        init_csv()
+
+        data = [
+            request.form["name"],
+            request.form["phone"],
+            request.form["email"],
+            request.form["experience"],
+            request.form["qualification"],
+            request.form["job_role"],
+            request.form["country"],
+            request.form["state"],
+            request.form["district"],
+            request.form["area"],
+            "Pending",
+            "Pending",
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ]
+
+        with open(CSV_FILE, mode="a", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(data)
+
+        return "✅ Application Submitted Successfully"
+
     return render_template("apply.html")
+
 
 @app.route("/admin")
 def admin():
-    return render_template("admin_login.html")
+    return render_template("admin.html")
+
 
 @app.route("/dashboard")
 def dashboard():
-    applications = []
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            applications = list(reader)
-    return render_template("dashboard.html", applications=applications)
+    init_csv()
+    rows = []
+
+    with open(CSV_FILE, mode="r", encoding="utf-8") as f:
+        reader = csv.reader(f)
+        rows = list(reader)
+
+    return render_template("dashboard.html", rows=rows)
+
 
 if __name__ == "__main__":
     app.run(debug=True)
