@@ -1,75 +1,69 @@
-import os
-import csv
-from flask import Flask, render_template, request, redirect, url_for, send_file
+import os, csv
+from flask import Flask, render_template, request, redirect, session
 from werkzeug.utils import secure_filename
+
+from questions import QUESTIONS
+from ai_engine import score_resume
+from auth import auth
+from admin import admin
 
 app = Flask(__name__)
 app.secret_key = "velvoro_secret"
 
-UPLOAD_FOLDER = "uploads"
-DB_FILE = "velvoro_jobs.csv"
+app.register_blueprint(auth)
+app.register_blueprint(admin)
 
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs("uploads", exist_ok=True)
+os.makedirs("data", exist_ok=True)
 
-FIELDS = [
-    "Name",
-    "Phone",
-    "Email",
-    "Job_Type",
-    "Job_Post",
-    "Experience",
-    "Country",
-    "State",
-    "District",
-    "Resume"
-]
+DB = "data/applications.csv"
 
-# Init CSV
-if not os.path.exists(DB_FILE):
-    with open(DB_FILE, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(FIELDS)
+if not os.path.exists(DB):
+    with open(DB,"w",newline="",encoding="utf-8") as f:
+        csv.writer(f).writerow([
+            "Name","Email","JobType","Score","QuizScore","ResumeScore","Paid"
+        ])
 
-@app.route("/", methods=["GET", "POST"])
+@app.route("/", methods=["GET","POST"])
 def index():
     if request.method == "POST":
-        data = {}
-        for field in FIELDS[:-1]:
-            data[field] = request.form.get(field, "")
-
-        resume = request.files.get("Resume")
-        filename = ""
-        if resume and resume.filename:
-            filename = secure_filename(resume.filename)
-            resume.save(os.path.join(UPLOAD_FOLDER, filename))
-
-        data["Resume"] = filename
-
-        with open(DB_FILE, "a", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(data.values())
-
-        return redirect(url_for("success"))
-
+        session["form"] = dict(request.form)
+        session["job"] = request.form["JobType"]
+        return redirect("/questions")
     return render_template("index.html")
+
+@app.route("/questions", methods=["GET","POST"])
+def questions():
+    job = session["job"]
+    qs = QUESTIONS[job]
+
+    if request.method == "POST":
+        correct = 0
+        for i,q in enumerate(qs):
+            if request.form.get(f"q{i}") == q["answer"]:
+                correct += 1
+
+        resume_score = score_resume(session["form"].get("resume_text",""))
+        total = correct * 10
+
+        with open(DB,"a",newline="",encoding="utf-8") as f:
+            csv.writer(f).writerow([
+                session["form"]["Name"],
+                session["form"]["Email"],
+                job,
+                total + resume_score,
+                correct,
+                resume_score,
+                "YES" if session["form"].get("Paid") else "NO"
+            ])
+
+        return redirect("/success")
+
+    return render_template("questions.html", questions=qs)
 
 @app.route("/success")
 def success():
     return render_template("success.html")
-
-@app.route("/admin")
-def admin():
-    rows = []
-    with open(DB_FILE, "r", encoding="utf-8") as f:
-        reader = csv.reader(f)
-        headers = next(reader)
-        for row in reader:
-            rows.append(row)
-    return render_template("admin.html", headers=headers, rows=rows)
-
-@app.route("/download")
-def download():
-    return send_file(DB_FILE, as_attachment=True)
 
 if __name__ == "__main__":
     app.run()
