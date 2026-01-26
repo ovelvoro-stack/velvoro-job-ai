@@ -1,0 +1,4 @@
+plan,max_jobs,resume_ai,quiz
+FREE,2,NO,NO
+BASIC,10,YES,NO
+PRO,999,YES,YES
