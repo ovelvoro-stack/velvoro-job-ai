@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Analytics – Velvoro</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body style="font-family:Arial;padding:20px">
+
+<h2>📊 Velvoro Job AI – Admin Analytics</h2>
+
+<p><b>Total Applications:</b> {{ data.total }}</p>
+
+<hr>
+
+<h3>Company-wise Applications</h3>
+<canvas id="companyChart"></canvas>
+
+<h3>Job Role Distribution</h3>
+<canvas id="roleChart"></canvas>
+
+<h3>AI Result</h3>
+<canvas id="resultChart"></canvas>
+
+<script>
+const companyChart = new Chart(
+  document.getElementById('companyChart'),
+  {
+    type: 'bar',
+    data: {
+      labels: {{ data.company_labels | safe }},
+      datasets: [{
+        label: 'Applications',
+        data: {{ data.company_values | safe }},
+        backgroundColor: 'rgba(54, 162, 235, 0.7)'
+      }]
+    }
+  }
+);
+
+const roleChart = new Chart(
+  document.getElementById('roleChart'),
+  {
+    type: 'pie',
+    data: {
+      labels: {{ data.role_labels | safe }},
+      datasets: [{
+        data: {{ data.role_values | safe }},
+        backgroundColor: [
+          '#ff6384','#36a2eb','#ffce56','#8bc34a'
+        ]
+      }]
+    }
+  }
+);
+
+const resultChart = new Chart(
+  document.getElementById('resultChart'),
+  {
+    type: 'doughnut',
+    data: {
+      labels: ['Pass', 'Fail'],
+      datasets: [{
+        data: [{{ data.pass }}, {{ data.fail }}],
+        backgroundColor: ['#4caf50', '#f44336']
+      }]
+    }
+  }
+);
+</script>
+
+</body>
+</html>
