@@ -1,119 +1,211 @@
-from flask import Flask, request, jsonify, redirect, url_for
-import csv, os
-import google.generativeai as genai
+from flask import Flask, request, redirect, session, url_for, render_template_string
+import csv, os, random, smtplib
+from email.mime.text import MIMEText
 
-# ==============================
-# FLASK APP CONFIG
-# ==============================
+# ===============================
+# FLASK APP
+# ===============================
 app = Flask(__name__)
 app.secret_key = "velvoro_secret_key"
-
 DB_FILE = "applications.csv"
 
-# ==============================
-# GEMINI CONFIG (DO NOT HARD CODE)
-# ==============================
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+# ===============================
+# EMAIL CONFIG (⚠️ ఇక్కడ నువ్వు పెట్టాలి)
+# ===============================
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
 
-def generate_ai_question(role):
-    model = genai.GenerativeModel("models/gemini-1.5-flash")
-    prompt = f"Ask one interview question for the job role: {role}"
-    response = model.generate_content(prompt)
-    return response.text
+EMAIL_SENDER = "ovelvoro@gmail.com"      # 🔴 ఇక్కడ నీ email
+EMAIL_PASSWORD = "qiduijujhrmcyfnh"       # 🔴 Gmail App Password
 
-def ai_pass_fail(answer):
-    model = genai.GenerativeModel("models/gemini-1.5-flash")
-    prompt = f"""
-    Evaluate this interview answer.
-    Answer only PASS or FAIL.
+# ===============================
+# UTILS
+# ===============================
+def send_email(to_email, subject, body):
+    try:
+        msg = MIMEText(body)
+        msg["From"] = EMAIL_SENDER
+        msg["To"] = to_email
+        msg["Subject"] = subject
 
-    Answer:
-    {answer}
-    """
-    response = model.generate_content(prompt)
-    return response.text.strip()
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+    except Exception as e:
+        print("Email error:", e)
 
-# ==============================
-# HOME
-# ==============================
-@app.route("/")
-def home():
-    return """
-    <h2>Velvoro Job AI is Live</h2>
-    <a href='/apply'>Apply Job</a><br><br>
-    <a href='/admin'>Admin Dashboard</a>
-    """
+def init_db():
+    if not os.path.exists(DB_FILE):
+        with open(DB_FILE, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                "name", "email", "mobile",
+                "qualification", "experience",
+                "job_role", "status"
+            ])
 
-# ==============================
+init_db()
+
+# ===============================
+# OTP LOGIN
+# ===============================
+@app.route("/", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        email = request.form["email"]
+        otp = str(random.randint(100000, 999999))
+
+        session["otp"] = otp
+        session["email"] = email
+
+        send_email(
+            email,
+            "Velvoro Login OTP",
+            f"Your OTP is: {otp}"
+        )
+
+        return redirect("/verify")
+
+    return render_template_string("""
+    <h2>OTP Login</h2>
+    <form method="post">
+        Email: <input name="email" required>
+        <button>Send OTP</button>
+    </form>
+    """)
+
+@app.route("/verify", methods=["GET", "POST"])
+def verify():
+    if request.method == "POST":
+        if request.form["otp"] == session.get("otp"):
+            session["logged_in"] = True
+            return redirect("/apply")
+        return "Invalid OTP"
+
+    return render_template_string("""
+    <h2>Verify OTP</h2>
+    <form method="post">
+        OTP: <input name="otp" required>
+        <button>Verify</button>
+    </form>
+    """)
+
+# ===============================
 # JOB APPLY FORM
-# ==============================
+# ===============================
 @app.route("/apply", methods=["GET", "POST"])
 def apply():
+    if not session.get("logged_in"):
+        return redirect("/")
+
     if request.method == "POST":
-        name = request.form["name"]
-        email = request.form["email"]
-        role = request.form["role"]
-        answer = request.form["answer"]
+        data = [
+            request.form["name"],
+            session["email"],
+            request.form["mobile"],
+            request.form["qualification"],
+            request.form["experience"],
+            request.form["job_role"],
+            "Pending"
+        ]
 
-        result = ai_pass_fail(answer)
-
-        file_exists = os.path.isfile(DB_FILE)
         with open(DB_FILE, "a", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            if not file_exists:
-                writer.writerow(["Name", "Email", "Role", "Answer", "Result"])
-            writer.writerow([name, email, role, answer, result])
+            csv.writer(f).writerow(data)
 
-        return f"<h3>Result: {result}</h3><a href='/'>Back</a>"
+        send_email(
+            session["email"],
+            "Application Submitted",
+            "Your application is successfully submitted."
+        )
 
-    question = generate_ai_question("Python Developer")
+        return "Application Submitted Successfully"
 
-    return f"""
-    <h2>Velvoro Job Application</h2>
+    return render_template_string("""
+    <h2>Job Application</h2>
     <form method="post">
-        Name:<br><input name="name"><br><br>
-        Email:<br><input name="email"><br><br>
-        Job Role:<br>
-        <select name="role">
+        Name: <input name="name" required><br>
+        Mobile: <input name="mobile" required><br>
+        Qualification:
+        <select name="qualification">
+            <option>10th</option><option>Inter</option>
+            <option>Degree</option><option>BTech</option>
+            <option>MTech</option><option>PhD</option>
+        </select><br>
+        Experience (Years): <input name="experience"><br>
+        Job Role:
+        <select name="job_role">
             <option>Python Developer</option>
             <option>Java Developer</option>
+            <option>Frontend Developer</option>
             <option>Data Analyst</option>
-            <option>Web Developer</option>
         </select><br><br>
-
-        <b>AI Question:</b><br>{question}<br><br>
-        Answer:<br>
-        <textarea name="answer" rows="5" cols="40"></textarea><br><br>
-
-        <button type="submit">Submit</button>
+        <button>Submit</button>
     </form>
-    """
+    """)
 
-# ==============================
-# ADMIN DASHBOARD
-# ==============================
+# ===============================
+# ADMIN DASHBOARD (SEARCH + FILTER)
+# ===============================
 @app.route("/admin")
 def admin():
-    rows = ""
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, newline="", encoding="utf-8") as f:
-            reader = csv.reader(f)
-            for r in reader:
-                rows += "<tr>" + "".join(f"<td>{c}</td>" for c in r) + "</tr>"
+    if request.args.get("key") != "admin123":
+        return "Unauthorized"
 
-    return f"""
+    q = request.args.get("q", "").lower()
+    role = request.args.get("role", "")
+
+    rows = []
+    with open(DB_FILE, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for r in reader:
+            if q and q not in r["name"].lower() and q not in r["email"].lower():
+                continue
+            if role and r["job_role"] != role:
+                continue
+            rows.append(r)
+
+    html = """
     <h2>Admin Dashboard</h2>
-    <table border="1" cellpadding="5">
-        {rows}
-    </table>
-    <br><a href="/">Home</a>
+    <form>
+        Search: <input name="q">
+        Role:
+        <select name="role">
+            <option value="">All</option>
+            <option>Python Developer</option>
+            <option>Java Developer</option>
+            <option>Frontend Developer</option>
+            <option>Data Analyst</option>
+        </select>
+        <button>Filter</button>
+    </form>
+    <table border=1>
+        <tr>
+            <th>Name</th><th>Email</th><th>Mobile</th>
+            <th>Qualification</th><th>Exp</th>
+            <th>Role</th><th>Status</th>
+        </tr>
     """
 
-# ==============================
-# AI QUESTION API (TEST)
-# ==============================
-@app.route("/question")
-def question():
-    role = request.args.get("role", "Python Developer")
-    q = generate_ai_question(role)
-    return jsonify({"question": q})
+    for r in rows:
+        html += f"""
+        <tr>
+            <td>{r['name']}</td>
+            <td>{r['email']}</td>
+            <td>{r['mobile']}</td>
+            <td>{r['qualification']}</td>
+            <td>{r['experience']}</td>
+            <td>{r['job_role']}</td>
+            <td>{r['status']}</td>
+        </tr>
+        """
+
+    html += "</table>"
+    return html
+
+# ===============================
+# RUN
+# ===============================
+if __name__ == "__main__":
+    app.run(debug=True)
