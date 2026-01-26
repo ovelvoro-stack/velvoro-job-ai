@@ -1,140 +1,78 @@
 import os
-import pandas as pd
-from flask import Flask, request, redirect, url_for, send_from_directory
-
+import csv
+from flask import Flask, render_template, request, redirect, url_for, send_file
 from werkzeug.utils import secure_filename
 
-# ===============================
-# BASIC CONFIG
-# ===============================
 app = Flask(__name__)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "velvoro_secret")
+
 UPLOAD_FOLDER = "uploads"
-DB_FILE = "velvoro_jobs.xlsx"
+DB_FILE = "velvoro_jobs.csv"
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# ===============================
-# EXCEL DATABASE INIT
-# ===============================
+FIELDS = [
+    "Name",
+    "Phone",
+    "Email",
+    "Category",
+    "Country",
+    "State",
+    "District",
+    "Resume"
+]
+
+# ---------- INIT CSV ----------
 if not os.path.exists(DB_FILE):
-    df = pd.DataFrame(columns=[
-        "Company",
-        "Name", "Phone", "Email",
-        "Category", "JobRole",
-        "Country", "State", "District", "Area",
-        "Resume",
-        "AI_Score",
-        "Status",
-        "Plan"
-    ])
-    df.to_excel(DB_FILE, index=False)
+    with open(DB_FILE, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(FIELDS)
 
-# ===============================
-# AI SCORING (SAFE STUB)
-# ===============================
-def ai_score_stub(resume_name, job_role):
-    # Gemini API later plug here
-    # This keeps app stable now
-    return 75
-
-# ===============================
-# HOME – JOB APPLY
-# ===============================
+# ---------- HOME / JOB APPLY ----------
 @app.route("/", methods=["GET", "POST"])
-def apply():
+def index():
     if request.method == "POST":
-        resume = request.files["resume"]
-        filename = secure_filename(resume.filename)
-        resume.save(os.path.join(UPLOAD_FOLDER, filename))
+        data = {}
+        for field in FIELDS[:-1]:
+            data[field] = request.form.get(field, "")
 
-        df = pd.read_excel(DB_FILE)
+        resume = request.files.get("Resume")
+        filename = ""
+        if resume:
+            filename = secure_filename(resume.filename)
+            resume.save(os.path.join(UPLOAD_FOLDER, filename))
 
-        score = ai_score_stub(filename, request.form["jobrole"])
+        data["Resume"] = filename
 
-        row = {
-            "Company": "Velvoro",
-            "Name": request.form["name"],
-            "Phone": request.form["phone"],
-            "Email": request.form["email"],
-            "Category": request.form["category"],
-            "JobRole": request.form["jobrole"],
-            "Country": request.form["country"],
-            "State": request.form["state"],
-            "District": request.form["district"],
-            "Area": request.form["area"],
-            "Resume": filename,
-            "AI_Score": score,
-            "Status": "New",
-            "Plan": "Free"
-        }
+        with open(DB_FILE, "a", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(data.values())
 
-        df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
-        df.to_excel(DB_FILE, index=False)
+        return redirect(url_for("success"))
 
-        return "<h2>✅ Application Submitted Successfully</h2>"
+    return render_template("index.html")
 
-    return """
-    <h2>Velvoro Job AI</h2>
-    <form method='POST' enctype='multipart/form-data'>
-    <input name='name' placeholder='Name' required><br>
-    <input name='phone' placeholder='Phone' required><br>
-    <input name='email' placeholder='Email' required><br>
-    <select name='category'><option>IT</option><option>Non-IT</option></select><br>
-    <input name='jobrole' placeholder='Job Role' required><br>
-    <input name='country' placeholder='Country'><br>
-    <input name='state' placeholder='State'><br>
-    <input name='district' placeholder='District'><br>
-    <input name='area' placeholder='Area'><br>
-    <input type='file' name='resume' required><br><br>
-    <button>Apply</button>
-    </form>
-    <br><a href='/admin'>Admin Login</a>
-    """
+# ---------- SUCCESS ----------
+@app.route("/success")
+def success():
+    return render_template("success.html")
 
-# ===============================
-# ADMIN LOGIN (SIMPLE, SAFE)
-# ===============================
-@app.route("/admin", methods=["GET", "POST"])
+# ---------- ADMIN ----------
+@app.route("/admin")
 def admin():
-    if request.method == "POST":
-        if request.form["password"] == "admin123":
-            return redirect("/dashboard")
-        return "Invalid password"
+    rows = []
+    with open(DB_FILE, "r", encoding="utf-8") as f:
+        reader = csv.reader(f)
+        headers = next(reader)
+        for row in reader:
+            rows.append(row)
+    return render_template("admin.html", headers=headers, rows=rows)
 
-    return """
-    <h3>Admin Login</h3>
-    <form method='POST'>
-    <input type='password' name='password'>
-    <button>Login</button>
-    </form>
-    """
+# ---------- DOWNLOAD EXCEL ----------
+@app.route("/download")
+def download():
+    return send_file(DB_FILE, as_attachment=True)
 
-# ===============================
-# ADMIN DASHBOARD
-# ===============================
-@app.route("/dashboard")
-def dashboard():
-    df = pd.read_excel(DB_FILE)
-    html = "<h2>Admin Dashboard</h2><table border=1>"
-    html += "".join(f"<th>{c}</th>" for c in df.columns)
-    for i, r in df.iterrows():
-        html += "<tr>"
-        for c in df.columns:
-            html += f"<td>{r[c]}</td>"
-        html += f"<td><a href='/resume/{r['Resume']}'>Resume</a></td>"
-        html += "</tr>"
-    html += "</table>"
-    return html
-
-# ===============================
-# RESUME DOWNLOAD
-# ===============================
-@app.route("/resume/<filename>")
-def resume(filename):
-    return send_from_directory(UPLOAD_FOLDER, filename)
-
-# ===============================
-# RUN
-# ===============================
+# ---------- RUN ----------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    app.run(debug=True)
