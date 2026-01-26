@@ -1,0 +1,5 @@
+plan = get_company_plan(company_id)
+features = plan_features(plan)
+
+if features["resume_ai"] == "NO":
+    return "Upgrade plan to enable Resume AI"
