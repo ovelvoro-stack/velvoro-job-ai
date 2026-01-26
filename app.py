@@ -1,170 +1,169 @@
-from flask import Flask, request, render_template_string, redirect, url_for, session
-import random, csv, os, datetime
+from flask import Flask, request, redirect, session, render_template_string
+import os, csv, random
 
-# ---------------- BASIC SETUP ----------------
 app = Flask(__name__)
 app.secret_key = "velvoro_secret_key"
 
-DATA_FILE = "applications.csv"
-USERS_FILE = "users.csv"
+UPLOAD_FOLDER = "resumes"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# ---------------- INIT FILES ----------------
-if not os.path.exists(DATA_FILE):
-    with open(DATA_FILE, "w", newline="") as f:
-        csv.writer(f).writerow([
-            "name","phone","email","experience","qualification",
-            "job_role","country","state","district","area",
-            "ai_score","result","date"
-        ])
+DB_FILE = "applications.csv"
 
-if not os.path.exists(USERS_FILE):
-    with open(USERS_FILE, "w", newline="") as f:
-        csv.writer(f).writerow(["email","otp","role","plan"])
+# ---------- DATA ----------
+JOB_ROLES = [
+    # IT
+    "Python Developer","Java Developer","Full Stack Developer","Frontend Developer",
+    "Backend Developer","Data Analyst","Data Scientist","AI/ML Engineer",
+    "DevOps Engineer","Cloud Engineer","Cyber Security Analyst",
+    # NON-IT
+    "HR Executive","HR Recruiter","Digital Marketing","SEO Executive",
+    "Content Writer","Sales Executive","Business Development",
+    "Customer Support","Telecaller","Accounts Executive","Office Admin"
+]
 
-# ---------------- MOCK AI QUESTIONS ----------------
-AI_QUESTIONS = {
-    "Python Developer": {
-        "q": "What is a list in Python?",
-        "ans": "collection"
-    },
-    "HR Executive": {
-        "q": "What is recruitment?",
-        "ans": "hiring"
-    },
-    "Marketing Executive": {
-        "q": "What is digital marketing?",
-        "ans": "online"
+QUALIFICATIONS = [
+    "10th","Inter","Diploma","ITI","Graduate","B.Tech","M.Tech",
+    "MBA","MCA","B.Sc","M.Sc","PhD"
+]
+
+# ---------- AI SCORING (Gemini fallback ready) ----------
+def ai_evaluate(job, answer):
+    keywords = {
+        "Python Developer": ["list","dict","loop","function"],
+        "HR Recruiter": ["recruitment","interview","screening"],
+        "Digital Marketing": ["seo","ads","marketing"]
     }
-}
+    score = 0
+    for k in keywords.get(job, []):
+        if k.lower() in answer.lower():
+            score += 25
+    return score, ("PASS" if score >= 50 else "FAIL")
 
-# ---------------- HOME ----------------
-@app.route("/")
-def home():
-    return "<h2>Velvoro Job AI Live</h2><a href='/apply'>Apply Job</a> | <a href='/admin'>Admin</a>"
-
-# ---------------- APPLY FORM ----------------
-@app.route("/apply", methods=["GET","POST"])
+# ---------- ROUTES ----------
+@app.route("/", methods=["GET","POST"])
 def apply():
     if request.method == "POST":
-        name = request.form["name"]
-        phone = request.form["phone"]
-        email = request.form["email"]
-        experience = request.form["experience"]
-        qualification = request.form["qualification"]
-        job_role = request.form["job_role"]
-        country = request.form["country"]
-        state = request.form["state"]
-        district = request.form["district"]
-        area = request.form["area"]
+        resume = request.files["resume"]
+        resume_path = os.path.join(UPLOAD_FOLDER, resume.filename)
+        resume.save(resume_path)
 
-        # AI evaluation
-        user_answer = request.form["answer"].lower()
-        correct = AI_QUESTIONS[job_role]["ans"]
-        ai_score = 80 if correct in user_answer else 30
-        result = "PASS" if ai_score >= 50 else "FAIL"
+        score, result = ai_evaluate(
+            request.form["job_role"],
+            request.form["answer"]
+        )
 
-        with open(DATA_FILE,"a",newline="") as f:
-            csv.writer(f).writerow([
-                name,phone,email,experience,qualification,
-                job_role,country,state,district,area,
-                ai_score,result,str(datetime.date.today())
-            ])
+        row = [
+            request.form["name"],
+            request.form["phone"],
+            request.form["email"],
+            request.form["experience"],
+            request.form["qualification"],
+            request.form["job_role"],
+            request.form["country"],
+            request.form["state"],
+            request.form["district"],
+            request.form["area"],
+            score,
+            result,
+            resume.filename
+        ]
 
-        return f"<h3>Application Submitted</h3><p>AI Score: {ai_score} ({result})</p><a href='/'>Home</a>"
+        new_file = not os.path.exists(DB_FILE)
+        with open(DB_FILE, "a", newline="") as f:
+            writer = csv.writer(f)
+            if new_file:
+                writer.writerow([
+                    "Name","Phone","Email","Experience","Qualification","Job Role",
+                    "Country","State","District","Area","AI Score","Result","Resume"
+                ])
+            writer.writerow(row)
 
-    return render_template_string("""
-    <h2>Velvoro Software Solution - Job Apply</h2>
-    <form method="post">
-    Name:<input name="name"><br>
-    Phone:<input name="phone"><br>
-    Email:<input name="email"><br>
+        return f"<h2>Application Submitted – {result}</h2>"
 
-    Experience:
-    <select name="experience">
-      {% for i in range(0,31) %}<option>{{i}}</option>{% endfor %}
-    </select><br>
+    return render_template_string(TEMPLATE, jobs=JOB_ROLES, quals=QUALIFICATIONS)
 
-    Qualification:
-    <select name="qualification">
-      <option>PhD</option><option>M.Tech</option>
-      <option>MCA</option><option>B.Tech</option>
-      <option>B.Sc</option><option>Diploma</option>
-      <option>SSC</option>
-    </select><br>
+# ---------- UI TEMPLATE ----------
+TEMPLATE = """
+<!doctype html>
+<html>
+<head>
+<title>Velvoro Software Solution – Job Apply</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container mt-5">
+<div class="card shadow p-4">
+<h2 class="text-center mb-4">Velvoro Software Solution – Job Application</h2>
 
-    Job Role:
-    <select name="job_role" onchange="this.form.submit()">
-      {% for r in roles %}<option>{{r}}</option>{% endfor %}
-    </select><br>
+<form method="post" enctype="multipart/form-data">
 
-    Country:<input name="country" value="India"><br>
-    State:<input name="state"><br>
-    District:<input name="district"><br>
-    Area:<input name="area"><br>
+<div class="row">
+<div class="col-md-6 mb-3">
+<label>Full Name</label>
+<input class="form-control" name="name" required>
+</div>
+<div class="col-md-6 mb-3">
+<label>Mobile</label>
+<input class="form-control" name="phone" required>
+</div>
+</div>
 
-    <p><b>AI Question:</b> {{question}}</p>
-    Answer:<input name="answer"><br><br>
+<div class="row">
+<div class="col-md-6 mb-3">
+<label>Email</label>
+<input class="form-control" name="email" required>
+</div>
+<div class="col-md-6 mb-3">
+<label>Experience (Years)</label>
+<input type="number" class="form-control" name="experience" required>
+</div>
+</div>
 
-    <button type="submit">Submit Application</button>
-    </form>
-    """,
-    roles=AI_QUESTIONS.keys(),
-    question=AI_QUESTIONS[list(AI_QUESTIONS.keys())[0]]["q"]
-    )
+<div class="row">
+<div class="col-md-6 mb-3">
+<label>Qualification</label>
+<select class="form-control" name="qualification">
+{% for q in quals %}
+<option>{{q}}</option>
+{% endfor %}
+</select>
+</div>
 
-# ---------------- OTP LOGIN (ADMIN) ----------------
-@app.route("/login", methods=["GET","POST"])
-def login():
-    if request.method == "POST":
-        email = request.form["email"]
-        otp = random.randint(100000,999999)
-        session["otp"] = str(otp)
-        session["email"] = email
+<div class="col-md-6 mb-3">
+<label>Job Role</label>
+<select class="form-control" name="job_role">
+{% for j in jobs %}
+<option>{{j}}</option>
+{% endfor %}
+</select>
+</div>
+</div>
 
-        with open(USERS_FILE,"a",newline="") as f:
-            csv.writer(f).writerow([email,otp,"admin","FREE"])
+<div class="row">
+<div class="col-md-3 mb-3"><input class="form-control" name="country" placeholder="Country" required></div>
+<div class="col-md-3 mb-3"><input class="form-control" name="state" placeholder="State" required></div>
+<div class="col-md-3 mb-3"><input class="form-control" name="district" placeholder="District" required></div>
+<div class="col-md-3 mb-3"><input class="form-control" name="area" placeholder="Area" required></div>
+</div>
 
-        print("OTP (Demo):", otp)
-        return redirect("/verify")
+<div class="mb-3">
+<label>AI Question: Explain your core skill</label>
+<textarea class="form-control" name="answer" required></textarea>
+</div>
 
-    return "<form method='post'>Admin Email:<input name='email'><button>Send OTP</button></form>"
+<div class="mb-3">
+<label>Upload Resume (PDF/DOC)</label>
+<input type="file" class="form-control" name="resume" required>
+</div>
 
-@app.route("/verify", methods=["GET","POST"])
-def verify():
-    if request.method == "POST":
-        if request.form["otp"] == session.get("otp"):
-            session["admin"] = True
-            return redirect("/admin")
-        return "Invalid OTP"
+<button class="btn btn-primary w-100">Submit Application</button>
 
-    return "<form method='post'>OTP:<input name='otp'><button>Verify</button></form>"
+</form>
+</div>
+</div>
+</body>
+</html>
+"""
 
-# ---------------- ADMIN DASHBOARD ----------------
-@app.route("/admin")
-def admin():
-    if not session.get("admin"):
-        return redirect("/login")
-
-    rows=[]
-    with open(DATA_FILE) as f:
-        rows=list(csv.DictReader(f))
-
-    html="<h2>Admin Dashboard</h2><table border=1>"
-    for r in rows:
-        html+="<tr>"+"".join(f"<td>{v}</td>" for v in r.values())+"</tr>"
-    html+="</table><br><a href='/'>Home</a>"
-    return html
-
-# ---------------- RAZORPAY PLACEHOLDER ----------------
-@app.route("/subscribe")
-def subscribe():
-    return """
-    <h3>Subscription (Demo)</h3>
-    <p>FREE → 5 Jobs</p>
-    <p>PRO → ₹499 (Unlimited)</p>
-    <p>(Razorpay keys add later)</p>
-    """
-
-# ---------------- RUN ----------------
 if __name__ == "__main__":
     app.run(debug=True)
