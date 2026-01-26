@@ -1,0 +1,7 @@
+<h2>Available Jobs</h2>
+{% for j in jobs %}
+<p>
+<b>{{j[2]}}</b> - {{j[4]}}
+<a href="/apply/{{j[0]}}">Apply</a>
+</p>
+{% endfor %}
