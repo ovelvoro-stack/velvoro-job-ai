@@ -1,63 +1,79 @@
 from fastapi import FastAPI, Request, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-import os, shutil
+import os
 
 app = FastAPI(title="Velvoro Job AI")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
-app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+applications = []  # temp memory (next step DB)
+
 # ---------------- HOME ----------------
 @app.get("/", response_class=HTMLResponse)
-def home():
-    return RedirectResponse("/apply")
+def home(request: Request):
+    return templates.TemplateResponse(
+        "home.html",
+        {"request": request}
+    )
 
-# ---------------- APPLY FORM ----------------
+# ---------------- APPLY ----------------
 @app.get("/apply", response_class=HTMLResponse)
 def apply_form(request: Request):
-    return templates.TemplateResponse("apply.html", {"request": request})
+    return templates.TemplateResponse(
+        "apply.html",
+        {"request": request}
+    )
 
 @app.post("/apply")
-async def submit_application(
+async def submit_apply(
     name: str = Form(...),
     phone: str = Form(...),
     email: str = Form(...),
     experience: int = Form(...),
     qualification: str = Form(...),
     role: str = Form(...),
-    country: str = Form(...),
-    state: str = Form(...),
-    district: str = Form(...),
-    answer1: str = Form(...),
-    answer2: str = Form(...),
     resume: UploadFile = File(...)
 ):
     file_path = os.path.join(UPLOAD_DIR, resume.filename)
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(resume.file, buffer)
+    with open(file_path, "wb") as f:
+        f.write(await resume.read())
 
-    # SIMPLE AI LOGIC (PASS / FAIL)
-    result = "PASS" if len(answer1) > 10 and len(answer2) > 10 else "FAIL"
+    score = 80 if experience >= 2 else 40
+    result = "PASS" if score >= 50 else "FAIL"
 
-    return {
-        "status": "submitted",
-        "result": result,
+    applications.append({
         "name": name,
-        "role": role
-    }
+        "phone": phone,
+        "email": email,
+        "experience": experience,
+        "qualification": qualification,
+        "role": role,
+        "score": score,
+        "result": result
+    })
 
-# ---------------- ADMIN ----------------
+    return RedirectResponse("/apply", status_code=303)
+
+# ---------------- ADMIN LOGIN ----------------
 @app.get("/admin", response_class=HTMLResponse)
 def admin_login(request: Request):
-    return templates.TemplateResponse("admin.html", {"request": request})
+    return templates.TemplateResponse(
+        "admin.html",
+        {"request": request}
+    )
 
+# ---------------- DASHBOARD ----------------
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request):
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+    return templates.TemplateResponse(
+        "dashboard.html",
+        {
+            "request": request,
+            "apps": applications
+        }
+    )
