@@ -1,36 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Admin Dashboard</title>
+    <title>Dashboard</title>
 </head>
 <body>
+    <h2>Admin Dashboard</h2>
+    <p>Applications will appear here</p>
 
-<h2>Applications Dashboard</h2>
-
-<table border="1">
-<tr>
-    <th>Name</th>
-    <th>Phone</th>
-    <th>Email</th>
-    <th>Experience</th>
-    <th>Qualification</th>
-    <th>Role</th>
-    <th>Result</th>
-</tr>
-
-{% for row in data %}
-<tr>
-    <td>{{row.name}}</td>
-    <td>{{row.phone}}</td>
-    <td>{{row.email}}</td>
-    <td>{{row.experience}}</td>
-    <td>{{row.qualification}}</td>
-    <td>{{row.role}}</td>
-    <td>{{row.result}}</td>
-</tr>
-{% endfor %}
-
-</table>
-
+    <a href="/">Back to Home</a>
 </body>
 </html>
