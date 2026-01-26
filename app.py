@@ -1,73 +1,61 @@
-from flask import Flask, request, redirect, url_for, render_template_string
+from flask import Flask, request, redirect, url_for, render_template_string, session
+import csv
+import os
+import statistics
 import smtplib
 from email.mime.text import MIMEText
 
 app = Flask(__name__)
+app.secret_key = "velvoro-secret"
 
-# -------------------------------
-# In-memory storage (simple & safe)
-# -------------------------------
-applications = []
+DATA_FILE = "applications.csv"
 
-# -------------------------------
-# EMAIL CONFIG (SMTP)
-# -------------------------------
+ADMIN_USER = "admin"
+ADMIN_PASS = "admin123"
+
 SMTP_EMAIL = "yourmail@gmail.com"
-SMTP_PASSWORD = "your_app_password"  # Gmail App Password
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
+SMTP_PASS = "your_app_password"
 
-def send_confirmation_email(to_email, name, job, score):
-    body = f"""
-Dear {name},
+# ---------- UTILITIES ----------
 
-Thank you for applying for the {job} position at Velvoro Software Solution.
+def init_csv():
+    if not os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["name", "email", "job", "score"])
 
-Your resume has been reviewed by our AI system.
-Resume Score: {score}/100
+def ai_score(resume):
+    keywords = ["python", "java", "sql", "api", "flask", "django"]
+    score = sum(10 for k in keywords if k in resume.lower())
+    return min(score, 100)
 
-Our HR team will contact you if your profile matches our requirements.
+def send_email(to_email, name, job):
+    msg = MIMEText(
+        f"""
+Hello {name},
 
-Best Regards,
+Thank you for applying for the {job} role at Velvoro Software Solution.
+
+Our team will review your profile and get back to you.
+
+Regards,
 Velvoro HR Team
 """
-
-    msg = MIMEText(body)
-    msg["Subject"] = "Velvoro Job Application – Confirmation"
+    )
+    msg["Subject"] = "Velvoro Job Application Confirmation"
     msg["From"] = SMTP_EMAIL
     msg["To"] = to_email
 
     try:
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-        server.starttls()
-        server.login(SMTP_EMAIL, SMTP_PASSWORD)
+        server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
+        server.login(SMTP_EMAIL, SMTP_PASS)
         server.send_message(msg)
         server.quit()
     except Exception as e:
         print("Email error:", e)
 
-# -------------------------------
-# Resume AI Scoring (Simple & Stable)
-# -------------------------------
-def resume_ai_score(resume_text, job):
-    keywords = {
-        "Python Developer": ["python", "flask", "django", "api"],
-        "Java Developer": ["java", "spring", "hibernate"],
-        "HR Recruiter": ["recruitment", "hiring", "interview"]
-    }
+# ---------- ROUTES ----------
 
-    score = 0
-    resume_text = resume_text.lower()
-
-    for word in keywords.get(job, []):
-        if word in resume_text:
-            score += 25
-
-    return min(score, 100)
-
-# -------------------------------
-# JOB APPLY PAGE
-# -------------------------------
 @app.route("/", methods=["GET", "POST"])
 def apply():
     if request.method == "POST":
@@ -76,89 +64,85 @@ def apply():
         job = request.form["job"]
         resume = request.form["resume"]
 
-        score = resume_ai_score(resume, job)
+        score = ai_score(resume)
 
-        applications.append({
-            "name": name,
-            "email": email,
-            "job": job,
-            "score": score
-        })
+        with open(DATA_FILE, "a", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow([name, email, job, score])
 
-        send_confirmation_email(email, name, job, score)
+        send_email(email, name, job)
 
-        return redirect(url_for("success"))
+        return "<h2>Application submitted successfully. Confirmation email sent.</h2>"
 
     return render_template_string("""
-<!DOCTYPE html>
-<html>
-<head>
-<title>Velvoro Job Application</title>
-</head>
-<body>
-<h2>Velvoro Job Application</h2>
-<form method="post">
-Name:<br><input name="name" required><br><br>
-Email:<br><input type="email" name="email" required><br><br>
+    <h1>Velvoro Job Application</h1>
+    <form method="post">
+        Name:<br><input name="name" required><br><br>
+        Email:<br><input name="email" type="email" required><br><br>
+        Job Role:<br>
+        <select name="job">
+            <option>Python Developer</option>
+            <option>Java Developer</option>
+            <option>HR Executive</option>
+        </select><br><br>
+        Resume (paste text):<br>
+        <textarea name="resume" rows="6" cols="40"></textarea><br><br>
+        <button type="submit">Apply</button>
+    </form>
+    """)
 
-Job Role:<br>
-<select name="job">
-<option>Python Developer</option>
-<option>Java Developer</option>
-<option>HR Recruiter</option>
-</select><br><br>
+@app.route("/admin", methods=["GET", "POST"])
+def admin_login():
+    if request.method == "POST":
+        if request.form["user"] == ADMIN_USER and request.form["pass"] == ADMIN_PASS:
+            session["admin"] = True
+            return redirect("/dashboard")
+    return render_template_string("""
+    <h2>Admin Login</h2>
+    <form method="post">
+        <input name="user" placeholder="username"><br><br>
+        <input name="pass" type="password" placeholder="password"><br><br>
+        <button>Login</button>
+    </form>
+    """)
 
-Resume (paste text):<br>
-<textarea name="resume" rows="6" cols="40" required></textarea><br><br>
+@app.route("/dashboard")
+def dashboard():
+    if not session.get("admin"):
+        return redirect("/admin")
 
-<button type="submit">Apply Job</button>
-</form>
-</body>
-</html>
-""")
+    rows = []
+    scores = []
 
-# -------------------------------
-# SUCCESS PAGE
-# -------------------------------
-@app.route("/success")
-def success():
-    return "<h2>Application Submitted Successfully</h2><p>Check your email for confirmation.</p>"
+    with open(DATA_FILE, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for r in reader:
+            rows.append(r)
+            scores.append(int(r["score"]))
 
-# -------------------------------
-# ADMIN DASHBOARD
-# -------------------------------
-@app.route("/admin")
-def admin():
-    total = len(applications)
-    avg_score = round(sum(a["score"] for a in applications) / total, 2) if total else 0
+    avg = round(statistics.mean(scores), 2) if scores else 0
 
-    rows = ""
-    for a in applications:
-        rows += f"<tr><td>{a['name']}</td><td>{a['email']}</td><td>{a['job']}</td><td>{a['score']}</td></tr>"
+    return render_template_string("""
+    <h1>Velvoro Admin Dashboard</h1>
+    <p>Total Applications: {{total}}</p>
+    <p>Average Resume Score: {{avg}}</p>
 
-    return render_template_string(f"""
-<!DOCTYPE html>
-<html>
-<head>
-<title>Admin Dashboard</title>
-</head>
-<body>
-<h2>Velvoro Admin Dashboard</h2>
+    <table border="1" cellpadding="5">
+        <tr><th>Name</th><th>Email</th><th>Job</th><th>Score</th></tr>
+        {% for r in rows %}
+        <tr>
+            <td>{{r.name}}</td>
+            <td>{{r.email}}</td>
+            <td>{{r.job}}</td>
+            <td>{{r.score}}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    """, total=len(rows), avg=avg, rows=rows)
 
-<p>Total Applications: <b>{total}</b></p>
-<p>Average Resume Score: <b>{avg_score}</b></p>
+# ---------- START ----------
 
-<table border="1" cellpadding="5">
-<tr>
-<th>Name</th><th>Email</th><th>Job</th><th>Score</th>
-</tr>
-{rows}
-</table>
+init_csv()
 
-</body>
-</html>
-""")
-
-# NOTE:
-# ❌ No app.run()
-# ✅ Gunicorn will run this in production
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
