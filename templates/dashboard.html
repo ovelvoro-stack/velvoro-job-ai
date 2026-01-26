@@ -1,46 +1,29 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Admin Dashboard</title>
+  <title>Admin Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+<h2>Applications</h2>
 
-<h2>Admin Dashboard</h2>
-<a href="/logout">Logout</a>
-
-<table border="1" cellpadding="5">
+<table>
 <tr>
-    <th>Name</th>
-    <th>Phone</th>
-    <th>Email</th>
-    <th>Experience</th>
-    <th>Qualification</th>
-    <th>Job Role</th>
-    <th>Country</th>
-    <th>State</th>
-    <th>District</th>
-    <th>Area</th>
-    <th>AI Score</th>
-    <th>Result</th>
+<th>Name</th><th>Phone</th><th>Email</th><th>Role</th><th>Experience</th><th>Result</th>
 </tr>
 
-{% for row in tables %}
+{% for a in applications %}
 <tr>
-    <td>{{ row.name }}</td>
-    <td>{{ row.phone }}</td>
-    <td>{{ row.email }}</td>
-    <td>{{ row.experience }}</td>
-    <td>{{ row.qualification }}</td>
-    <td>{{ row.job_role }}</td>
-    <td>{{ row.country }}</td>
-    <td>{{ row.state }}</td>
-    <td>{{ row.district }}</td>
-    <td>{{ row.area }}</td>
-    <td>{{ row.ai_score }}</td>
-    <td>{{ row.result }}</td>
+<td>{{a.name}}</td>
+<td>{{a.phone}}</td>
+<td>{{a.email}}</td>
+<td>{{a.job_role}}</td>
+<td>{{a.experience}}</td>
+<td>{{a.result}}</td>
 </tr>
 {% endfor %}
-
 </table>
+
+<a href="/">⬅ Home</a>
 </body>
 </html>
