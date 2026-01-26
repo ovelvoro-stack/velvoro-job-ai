@@ -1,27 +1,18 @@
-<!DOCTYPE html>
-<html>
-<head><title>Admin Dashboard</title></head>
-<body>
-
-<h2>Velvoro Job AI – Admin Dashboard</h2>
-<a href="/logout">Logout</a>
-
+{% extends "base.html" %}
+{% block content %}
 <table border="1">
 <tr>
-    <th>Name</th><th>Phone</th><th>Email</th><th>Experience</th>
-    <th>Qualification</th><th>Job Role</th><th>Country</th>
-    <th>State</th><th>District</th><th>Area</th>
-    <th>AI Score</th><th>Result</th><th>Applied At</th>
+{% for key in data[0].keys() %}
+<th>{{key}}</th>
+{% endfor %}
 </tr>
 
-{% for r in rows %}
+{% for row in data %}
 <tr>
-{% for c in r %}
-<td>{{ c }}</td>
+{% for value in row.values() %}
+<td>{{value}}</td>
 {% endfor %}
 </tr>
 {% endfor %}
 </table>
-
-</body>
-</html>
+{% endblock %}
