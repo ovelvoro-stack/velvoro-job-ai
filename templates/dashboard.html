@@ -1,29 +1,22 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Admin Dashboard</title>
-  <link rel="stylesheet" href="/static/style.css">
+    <title>Admin Dashboard</title>
 </head>
 <body>
-<h2>Applications</h2>
+<h2>Admin Dashboard</h2>
 
-<table>
-<tr>
-<th>Name</th><th>Phone</th><th>Email</th><th>Role</th><th>Experience</th><th>Result</th>
-</tr>
-
-{% for a in applications %}
-<tr>
-<td>{{a.name}}</td>
-<td>{{a.phone}}</td>
-<td>{{a.email}}</td>
-<td>{{a.job_role}}</td>
-<td>{{a.experience}}</td>
-<td>{{a.result}}</td>
-</tr>
-{% endfor %}
+<table border="1">
+    {% for row in rows %}
+    <tr>
+        {% for col in row %}
+        <td>{{ col }}</td>
+        {% endfor %}
+    </tr>
+    {% endfor %}
 </table>
 
-<a href="/">⬅ Home</a>
+<br>
+<a href="/">Back to Home</a>
 </body>
 </html>
