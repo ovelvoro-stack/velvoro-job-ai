@@ -1,12 +1,14 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Admin Login</title>
-</head>
-<body>
-<h2>Admin Login</h2>
-<p>(Next step: authentication)</p>
-
-<a href="/">Back to Home</a>
-</body>
-</html>
+<h2>Admin Dashboard</h2>
+<table border="1">
+<tr>
+<th>Name</th><th>Email</th><th>Role</th><th>AI Result</th>
+</tr>
+{% for u in data %}
+<tr>
+<td>{{u.name}}</td>
+<td>{{u.email}}</td>
+<td>{{u.job_role}}</td>
+<td>{{u.ai_result}}</td>
+</tr>
+{% endfor %}
+</table>
