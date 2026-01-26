@@ -1,29 +1,22 @@
-import os
-import csv
-from flask import Flask, render_template, request, redirect, url_for
+import os, csv
+from flask import Flask, render_template, request, redirect, url_for, session
 from werkzeug.utils import secure_filename
 
-app = Flask(__name__)
+from auth import check_login
+from resume_ai import score_resume
+from subscription import can_post_job
 
-# ---------- CONFIG ----------
+app = Flask(__name__)
+app.secret_key = "velvoro_secret"
+
 UPLOAD_FOLDER = "uploads"
 DATA_FOLDER = "data"
-CSV_FILE = os.path.join(DATA_FOLDER, "applications.csv")
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(DATA_FOLDER, exist_ok=True)
 
-# ---------- INIT CSV ----------
-if not os.path.exists(CSV_FILE):
-    with open(CSV_FILE, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow([
-            "Name", "Phone", "Email",
-            "Category", "Experience",
-            "Company", "Resume"
-        ])
+APP_FILE = f"{DATA_FOLDER}/applications.csv"
 
-# ---------- ROUTES ----------
 @app.route("/")
 def apply():
     return render_template("apply.html")
@@ -31,41 +24,41 @@ def apply():
 @app.route("/submit", methods=["POST"])
 def submit():
     name = request.form["name"]
-    phone = request.form["phone"]
-    email = request.form["email"]
     category = request.form["category"]
     experience = request.form["experience"]
-    company = request.form["company"]
 
     resume = request.files["resume"]
     filename = secure_filename(resume.filename)
-    resume.save(os.path.join(UPLOAD_FOLDER, filename))
+    path = os.path.join(UPLOAD_FOLDER, filename)
+    resume.save(path)
 
-    with open(CSV_FILE, "a", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow([
-            name, phone, email,
-            category, experience,
-            company, filename
-        ])
+    text = resume.read().decode("latin-1", errors="ignore") if False else ""
+    score = score_resume(text, category, experience)
 
-    return redirect(url_for("success"))
+    with open(APP_FILE, "a", newline="", encoding="utf-8") as f:
+        csv.writer(f).writerow([name, category, experience, score, filename])
 
-@app.route("/success")
-def success():
-    return render_template("success.html")
+    return render_template("success.html", score=score)
 
 # ---------- ADMIN ----------
+@app.route("/login", methods=["GET","POST"])
+def login():
+    if request.method == "POST":
+        if check_login(request.form["username"], request.form["password"]):
+            session["admin"] = True
+            return redirect("/admin")
+    return render_template("login.html")
+
 @app.route("/admin")
 def admin():
+    if not session.get("admin"):
+        return redirect("/login")
+
     data = []
-    with open(CSV_FILE, newline="", encoding="utf-8") as f:
-        reader = csv.reader(f)
-        next(reader)
-        for row in reader:
+    with open(APP_FILE, newline="", encoding="utf-8") as f:
+        for row in csv.reader(f):
             data.append(row)
     return render_template("admin.html", data=data)
 
-# ---------- RUN ----------
 if __name__ == "__main__":
     app.run(debug=True)
