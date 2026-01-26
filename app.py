@@ -1,33 +1,34 @@
 from flask import Flask, render_template, request, redirect, session
-import random, smtplib, os
+import random, os
+import resend
 import google.generativeai as genai
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY")
 
+# Resend
+resend.api_key = os.environ.get("RESEND_API_KEY")
+
 # Gemini
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
-# Email config
-EMAIL = os.environ.get("EMAIL_SENDER")
-PASSWORD = os.environ.get("EMAIL_PASSWORD")
-
-DATA = []  # simple in-memory storage
+DATA = []
 
 
-def send_otp(email, otp):
-    msg = f"Subject: Velvoro Job AI - OTP\n\nYour OTP is: {otp}"
-    server = smtplib.SMTP("smtp.gmail.com", 587)
-    server.starttls()
-    server.login(EMAIL, PASSWORD)
-    server.sendmail(EMAIL, email, msg)
-    server.quit()
+def send_otp_email(to_email, otp):
+    resend.Emails.send({
+        "from": "Velvoro Job AI <onboarding@resend.dev>",
+        "to": to_email,
+        "subject": "Velvoro Job AI – OTP",
+        "html": f"<h2>Your OTP is <b>{otp}</b></h2>"
+    })
 
 
 def ai_score(role):
     model = genai.GenerativeModel("models/gemini-1.5-flash")
-    prompt = f"Give pass or fail for job role: {role}"
-    res = model.generate_content(prompt)
+    res = model.generate_content(
+        f"Evaluate candidate for job role {role}. Reply PASS or FAIL"
+    )
     return res.text.strip()
 
 
@@ -38,25 +39,25 @@ def index():
         session["otp"] = str(otp)
         session["user"] = request.form.to_dict()
 
-        send_otp(session["user"]["email"], otp)
-        return redirect("/verify")
+        send_otp_email(session["user"]["email"], otp)
+        return redirect("/otp")
 
     return render_template("index.html")
 
 
-@app.route("/verify", methods=["GET", "POST"])
-def verify():
+@app.route("/otp", methods=["GET", "POST"])
+def otp():
     if request.method == "POST":
         if request.form["otp"] == session.get("otp"):
             user = session["user"]
             result = ai_score(user["job_role"])
             user["ai_result"] = result
             DATA.append(user)
-            return "✅ Application submitted & evaluated successfully"
+            return "✅ OTP Verified. Application Submitted."
         else:
             return "❌ Invalid OTP"
 
-    return render_template("verify_otp.html")
+    return render_template("otp.html")
 
 
 @app.route("/admin")
@@ -65,4 +66,4 @@ def admin():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run()
