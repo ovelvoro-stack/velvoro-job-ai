@@ -1,36 +1,19 @@
-from flask import Flask, request, redirect
+from flask import Flask, request, redirect, session
 import os, random, csv
 
-# ---------- OPTIONAL AI (SAFE) ----------
-try:
-    import google.generativeai as genai
-    genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-    ai_enabled = True
-except:
-    ai_enabled = False
+app = Flask(__name__)
+app.secret_key = "velvoro-secret"
 
-# ---------- OPTIONAL TWILIO (SAFE) ----------
+# -------- OPTIONAL SERVICES --------
 try:
     from twilio.rest import Client
     twilio_enabled = True
 except:
     twilio_enabled = False
 
-app = Flask(__name__)
-
-# ---------- HELPERS ----------
+# -------- HELPERS --------
 def generate_otp():
     return str(random.randint(100000, 999999))
-
-def ai_score(role):
-    if not ai_enabled:
-        return "N/A"
-    try:
-        model = genai.GenerativeModel("models/gemini-1.5-flash")
-        r = model.generate_content(f"Rate candidate for role {role} from 1 to 10")
-        return r.text.strip()
-    except:
-        return "AI Error"
 
 def send_whatsapp(phone, otp):
     if not twilio_enabled:
@@ -48,40 +31,57 @@ def send_whatsapp(phone, otp):
     except:
         pass
 
-# ---------- ROUTES ----------
+# -------- ROUTES --------
 @app.route("/", methods=["GET", "POST"])
-def home():
+def apply():
     if request.method == "POST":
         name  = request.form["name"]
         phone = request.form["phone"]
         email = request.form["email"]
         role  = request.form["role"]
 
-        otp   = generate_otp()
-        score = ai_score(role)
+        otp = generate_otp()
 
-        # Save CSV
-        with open("data.csv", "a", newline="") as f:
-            csv.writer(f).writerow([name, phone, email, role, otp, score])
+        session["otp"] = otp
+        session["user"] = [name, phone, email, role]
 
-        # WhatsApp OTP
         send_whatsapp(phone, otp)
 
-        return f"""
-        <h2>Application Submitted ✅</h2>
-        <p><b>AI Score:</b> {score}</p>
-        <p>OTP generated (WhatsApp)</p>
-        <a href="/">Back</a>
-        """
+        return redirect("/verify")
 
     return """
     <h2>Velvoro Job AI</h2>
     <form method="post">
-      Name:<br><input name="name"><br>
-      Phone (with country code):<br><input name="phone"><br>
-      Email:<br><input name="email"><br>
-      Job Role:<br><input name="role"><br><br>
+      Name:<br><input name="name" required><br>
+      Phone (+91...):<br><input name="phone" required><br>
+      Email:<br><input name="email" required><br>
+      Job Role:<br><input name="role" required><br><br>
       <button type="submit">Apply</button>
+    </form>
+    """
+
+@app.route("/verify", methods=["GET", "POST"])
+def verify():
+    if request.method == "POST":
+        entered = request.form["otp"]
+        if entered == session.get("otp"):
+            name, phone, email, role = session["user"]
+            with open("data.csv", "a", newline="") as f:
+                csv.writer(f).writerow([name, phone, email, role])
+
+            return """
+            <h2>✅ OTP Verified Successfully</h2>
+            <p>Application Submitted</p>
+            <a href="/">Back</a>
+            """
+        else:
+            return "<h3>❌ Invalid OTP</h3><a href='/verify'>Try Again</a>"
+
+    return """
+    <h2>Enter OTP</h2>
+    <form method="post">
+      <input name="otp" placeholder="Enter OTP" required>
+      <button type="submit">Verify</button>
     </form>
     """
 
@@ -92,14 +92,15 @@ def admin():
         with open("data.csv") as f:
             for r in csv.reader(f):
                 rows += "<tr>" + "".join(f"<td>{x}</td>" for x in r) + "</tr>"
+
     return f"""
     <h2>Admin Dashboard</h2>
     <table border="1">
-    <tr><th>Name</th><th>Phone</th><th>Email</th><th>Role</th><th>OTP</th><th>Score</th></tr>
+    <tr><th>Name</th><th>Phone</th><th>Email</th><th>Role</th></tr>
     {rows}
     </table>
     """
 
-# ---------- ENTRY ----------
+# -------- RUN --------
 if __name__ == "__main__":
     app.run()
