@@ -1,21 +1,17 @@
 import os, csv
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, session
 from werkzeug.utils import secure_filename
 
-from auth import check_login
-from resume_ai import score_resume
-from subscription import can_post_job
+from gpt_resume_ai import gpt_score_resume
+from auth import company_login
+from subscription import can_use_ai
+from dashboard import company_stats
 
 app = Flask(__name__)
-app.secret_key = "velvoro_secret"
+app.secret_key = "velvoro_production_key"
 
-UPLOAD_FOLDER = "uploads"
-DATA_FOLDER = "data"
-
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(DATA_FOLDER, exist_ok=True)
-
-APP_FILE = f"{DATA_FOLDER}/applications.csv"
+UPLOADS = "uploads"
+os.makedirs(UPLOADS, exist_ok=True)
 
 @app.route("/")
 def apply():
@@ -23,42 +19,44 @@ def apply():
 
 @app.route("/submit", methods=["POST"])
 def submit():
+    company = request.form["company"]
     name = request.form["name"]
-    category = request.form["category"]
-    experience = request.form["experience"]
+    role = request.form["role"]
+    exp = request.form["experience"]
 
     resume = request.files["resume"]
     filename = secure_filename(resume.filename)
-    path = os.path.join(UPLOAD_FOLDER, filename)
+    path = os.path.join(UPLOADS, filename)
     resume.save(path)
 
     text = resume.read().decode("latin-1", errors="ignore") if False else ""
-    score = score_resume(text, category, experience)
+    score = gpt_score_resume(text, role, exp)
 
-    with open(APP_FILE, "a", newline="", encoding="utf-8") as f:
-        csv.writer(f).writerow([name, category, experience, score, filename])
+    with open("data/applications.csv", "a", newline="", encoding="utf-8") as f:
+        csv.writer(f).writerow([
+            company, name, role, exp, filename, score
+        ])
 
     return render_template("success.html", score=score)
 
-# ---------- ADMIN ----------
 @app.route("/login", methods=["GET","POST"])
 def login():
     if request.method == "POST":
-        if check_login(request.form["username"], request.form["password"]):
-            session["admin"] = True
-            return redirect("/admin")
+        user = company_login(
+            request.form["email"],
+            request.form["password"]
+        )
+        if user:
+            session["company"] = user[0]
+            session["plan"] = user[3]
+            session["role"] = "company"
+            return redirect("/dashboard")
     return render_template("login.html")
 
-@app.route("/admin")
-def admin():
-    if not session.get("admin"):
-        return redirect("/login")
-
-    data = []
-    with open(APP_FILE, newline="", encoding="utf-8") as f:
-        for row in csv.reader(f):
-            data.append(row)
-    return render_template("admin.html", data=data)
+@app.route("/dashboard")
+def dashboard():
+    stats = company_stats(session["company"])
+    return render_template("company_dashboard.html", stats=stats)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run()
