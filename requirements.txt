@@ -1,4 +1,4 @@
-flask
-requests
-sqlite3
-gunicorn
+Flask
+pandas
+openpyxl
+Werkzeug
