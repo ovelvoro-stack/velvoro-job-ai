@@ -1,82 +1,33 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>AI Powered Job Application</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <script src="/static/app.js" defer></script>
-</head>
-<body>
+<h2>AI Professional Job Application</h2>
+<form method="post" enctype="multipart/form-data">
+  Name: <input name="name"><br>
+  Phone: <input name="phone"><br>
+  Email: <input name="email"><br>
 
-<div class="container">
-    <h1>AI Powered Job Application</h1>
-    <h3>Company: Velvoro Software Solution</h3>
+  Experience:
+  <select name="experience">
+    {% for i in range(0,31) %}
+    <option value="{{i}}">{{i}} Years</option>
+    {% endfor %}
+  </select><br>
 
-    <form method="post" enctype="multipart/form-data">
+  Qualification:
+  <select name="qualification">
+    <option>PhD</option>
+    <option>M.Tech</option>
+    <option>B.Tech</option>
+    <option>Diploma</option>
+    <option>SSC</option>
+  </select><br>
 
-        <label>Full Name</label>
-        <input name="name" required>
+  Role:
+  <select name="role">
+    <option>Software Developer</option>
+    <option>Tester</option>
+    <option>HR</option>
+    <option>Non-IT Staff</option>
+  </select><br>
 
-        <label>Phone Number</label>
-        <input name="phone" required>
-
-        <label>Email ID</label>
-        <input name="email" type="email" required>
-
-        <label>Total Experience</label>
-        <select name="experience">
-            {% for i in range(0,31) %}
-            <option value="{{i}}">{{i}} Years</option>
-            {% endfor %}
-        </select>
-
-        <label>Qualification</label>
-        <select name="qualification">
-            <option>SSC</option>
-            <option>Inter</option>
-            <option>Diploma</option>
-            <option>Degree</option>
-            <option>MBA</option>
-            <option>MCA</option>
-            <option>M.Tech</option>
-            <option>PhD</option>
-        </select>
-
-        <label>Job Role</label>
-        <select name="role" id="role" onchange="loadQuestions()">
-            <option>IT</option>
-            <option>Non-IT</option>
-            <option>Pharma</option>
-        </select>
-
-        <label>Country</label>
-        <select name="country">
-            <option>India</option>
-            <option>USA</option>
-            <option>UK</option>
-            <option>Canada</option>
-            <option>Australia</option>
-        </select>
-
-        <label>State</label>
-        <input name="state">
-
-        <label>District</label>
-        <input name="district">
-
-        <div id="questions">
-            <label id="q1">Question 1</label>
-            <textarea name="answer1" required></textarea>
-
-            <label id="q2">Question 2</label>
-            <textarea name="answer2" required></textarea>
-        </div>
-
-        <label>Upload Resume</label>
-        <input type="file" name="resume" required>
-
-        <button type="submit">Submit Application</button>
-    </form>
-</div>
-
-</body>
-</html>
+  Resume: <input type="file" name="resume"><br>
+  <button>Submit</button>
+</form>
