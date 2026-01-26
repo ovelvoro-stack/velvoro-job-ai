@@ -1,102 +1,68 @@
-from flask import Flask, request, redirect, session
-import os, random, csv
+from flask import Flask, render_template, request, redirect, session
+import random, smtplib, os
+import google.generativeai as genai
 
 app = Flask(__name__)
-app.secret_key = "velvoro-final-secret"
+app.secret_key = os.environ.get("SECRET_KEY")
 
-# ---------- TWILIO ----------
-from twilio.rest import Client
+# Gemini
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
-def send_whatsapp_otp(phone, otp):
-    client = Client(
-        os.getenv("TWILIO_ACCOUNT_SID"),
-        os.getenv("TWILIO_AUTH_TOKEN")
-    )
-    client.messages.create(
-        from_=os.getenv("TWILIO_WHATSAPP_FROM"),
-        to=f"whatsapp:{phone}",
-        body=f"🔐 Velvoro Job AI OTP: {otp}"
-    )
+# Email config
+EMAIL = os.environ.get("EMAIL_SENDER")
+PASSWORD = os.environ.get("EMAIL_PASSWORD")
 
-# ---------- OTP ----------
-def generate_otp():
-    return str(random.randint(100000, 999999))
+DATA = []  # simple in-memory storage
 
-# ---------- APPLY ----------
+
+def send_otp(email, otp):
+    msg = f"Subject: Velvoro Job AI - OTP\n\nYour OTP is: {otp}"
+    server = smtplib.SMTP("smtp.gmail.com", 587)
+    server.starttls()
+    server.login(EMAIL, PASSWORD)
+    server.sendmail(EMAIL, email, msg)
+    server.quit()
+
+
+def ai_score(role):
+    model = genai.GenerativeModel("models/gemini-1.5-flash")
+    prompt = f"Give pass or fail for job role: {role}"
+    res = model.generate_content(prompt)
+    return res.text.strip()
+
+
 @app.route("/", methods=["GET", "POST"])
-def apply():
+def index():
     if request.method == "POST":
-        name  = request.form["name"]
-        phone = request.form["phone"]
-        email = request.form["email"]
-        role  = request.form["role"]
+        otp = random.randint(100000, 999999)
+        session["otp"] = str(otp)
+        session["user"] = request.form.to_dict()
 
-        otp = generate_otp()
+        send_otp(session["user"]["email"], otp)
+        return redirect("/verify")
 
-        session["otp"] = otp
-        session["user"] = [name, phone, email, role]
+    return render_template("index.html")
 
-        send_whatsapp_otp(phone, otp)
 
-        # 🔥 THIS IS IMPORTANT
-        return redirect("/verify-otp")
-
-    return """
-    <h2>Velvoro Job AI</h2>
-    <form method="post">
-      Name:<br><input name="name" required><br><br>
-      Phone (+91XXXXXXXXXX):<br><input name="phone" required><br><br>
-      Email:<br><input name="email" required><br><br>
-      Job Role:<br><input name="role" required><br><br>
-      <button type="submit">Apply</button>
-    </form>
-    """
-
-# ---------- OTP PAGE ----------
-@app.route("/verify-otp", methods=["GET", "POST"])
-def verify_otp():
+@app.route("/verify", methods=["GET", "POST"])
+def verify():
     if request.method == "POST":
-        entered = request.form["otp"]
+        if request.form["otp"] == session.get("otp"):
+            user = session["user"]
+            result = ai_score(user["job_role"])
+            user["ai_result"] = result
+            DATA.append(user)
+            return "✅ Application submitted & evaluated successfully"
+        else:
+            return "❌ Invalid OTP"
 
-        if entered == session.get("otp"):
-            name, phone, email, role = session["user"]
+    return render_template("verify_otp.html")
 
-            with open("applications.csv", "a", newline="") as f:
-                csv.writer(f).writerow([name, phone, email, role])
 
-            return """
-            <h2>✅ OTP Verified</h2>
-            <p>Your application is submitted successfully.</p>
-            """
-
-        return "<h3>❌ Invalid OTP</h3><a href='/verify-otp'>Try Again</a>"
-
-    return """
-    <h2>Enter OTP</h2>
-    <p>OTP already sent to your WhatsApp</p>
-    <form method="post">
-      <input name="otp" placeholder="Enter OTP" required>
-      <button type="submit">Verify</button>
-    </form>
-    """
-
-# ---------- ADMIN ----------
 @app.route("/admin")
 def admin():
-    rows = ""
-    if os.path.exists("applications.csv"):
-        with open("applications.csv") as f:
-            for r in csv.reader(f):
-                rows += "<tr>" + "".join(f"<td>{x}</td>" for x in r) + "</tr>"
+    return render_template("admin.html", data=DATA)
 
-    return f"""
-    <h2>Admin Dashboard</h2>
-    <table border="1">
-      <tr><th>Name</th><th>Phone</th><th>Email</th><th>Role</th></tr>
-      {rows}
-    </table>
-    """
 
-# ---------- RUN ----------
 if __name__ == "__main__":
-    app.run()
+    app.run(debug=True)
