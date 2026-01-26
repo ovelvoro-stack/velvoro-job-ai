@@ -1,0 +1,11 @@
+def get_company_plan(company_id):
+    plans = read_csv("data/company_plans.csv")
+    for p in plans:
+        if p["company_id"] == company_id:
+            return p["plan"]
+    return "FREE"
+
+def plan_features(plan_name):
+    for p in read_csv("data/plans.csv"):
+        if p["plan"] == plan_name:
+            return p
