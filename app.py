@@ -1,211 +1,117 @@
-from flask import Flask, request, redirect, session, url_for, render_template_string
+from flask import Flask, request, redirect, session, render_template_string
 import csv, os, random, smtplib
 from email.mime.text import MIMEText
 
-# ===============================
-# FLASK APP
-# ===============================
 app = Flask(__name__)
 app.secret_key = "velvoro_secret_key"
+
 DB_FILE = "applications.csv"
 
-# ===============================
-# EMAIL CONFIG (⚠️ ఇక్కడ నువ్వు పెట్టాలి)
-# ===============================
+# =========================
+# EMAIL CONFIG (Render ENV)
+# =========================
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
+EMAIL_SENDER = os.environ.get("EMAIL_SENDER")      # your gmail
+EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")  # gmail app password
 
-EMAIL_SENDER = "ovelvoro@gmail.com"      # 🔴 ఇక్కడ నీ email
-EMAIL_PASSWORD = "qiduijujhrmcyfnh"       # 🔴 Gmail App Password
-
-# ===============================
+# =========================
 # UTILS
-# ===============================
+# =========================
 def send_email(to_email, subject, body):
-    try:
-        msg = MIMEText(body)
-        msg["From"] = EMAIL_SENDER
-        msg["To"] = to_email
-        msg["Subject"] = subject
+    msg = MIMEText(body)
+    msg["Subject"] = subject
+    msg["From"] = EMAIL_SENDER
+    msg["To"] = to_email
 
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-        server.starttls()
-        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
-        server.send_message(msg)
-        server.quit()
-    except Exception as e:
-        print("Email error:", e)
+    server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+    server.starttls()
+    server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+    server.send_message(msg)
+    server.quit()
 
-def init_db():
-    if not os.path.exists(DB_FILE):
-        with open(DB_FILE, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow([
-                "name", "email", "mobile",
-                "qualification", "experience",
-                "job_role", "status"
-            ])
+def save_to_csv(row):
+    file_exists = os.path.exists(DB_FILE)
+    with open(DB_FILE, "a", newline="") as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow(["Name", "Email", "Phone"])
+        writer.writerow(row)
 
-init_db()
-
-# ===============================
-# OTP LOGIN
-# ===============================
-@app.route("/", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        email = request.form["email"]
-        otp = str(random.randint(100000, 999999))
-
-        session["otp"] = otp
-        session["email"] = email
-
-        send_email(
-            email,
-            "Velvoro Login OTP",
-            f"Your OTP is: {otp}"
-        )
-
-        return redirect("/verify")
-
+# =========================
+# HOME – JOB FORM
+# =========================
+@app.route("/")
+def home():
     return render_template_string("""
-    <h2>OTP Login</h2>
-    <form method="post">
-        Email: <input name="email" required>
-        <button>Send OTP</button>
+    <h2>Velvoro Job Application</h2>
+    <form method="post" action="/send-otp">
+        Name:<br><input name="name" required><br><br>
+        Email:<br><input name="email" required><br><br>
+        Phone:<br><input name="phone" required><br><br>
+        <button type="submit">Send OTP</button>
     </form>
     """)
 
-@app.route("/verify", methods=["GET", "POST"])
-def verify():
-    if request.method == "POST":
-        if request.form["otp"] == session.get("otp"):
-            session["logged_in"] = True
-            return redirect("/apply")
-        return "Invalid OTP"
+# =========================
+# SEND OTP
+# =========================
+@app.route("/send-otp", methods=["POST"])
+def send_otp():
+    session["name"] = request.form["name"]
+    session["email"] = request.form["email"]
+    session["phone"] = request.form["phone"]
+
+    otp = str(random.randint(100000, 999999))
+    session["otp"] = otp
+
+    send_email(
+        session["email"],
+        "Velvoro OTP Verification",
+        f"Your OTP is: {otp}"
+    )
 
     return render_template_string("""
-    <h2>Verify OTP</h2>
-    <form method="post">
-        OTP: <input name="otp" required>
-        <button>Verify</button>
+    <h3>OTP sent to your email</h3>
+    <form method="post" action="/verify-otp">
+        Enter OTP:<br>
+        <input name="otp" required><br><br>
+        <button type="submit">Verify</button>
     </form>
     """)
 
-# ===============================
-# JOB APPLY FORM
-# ===============================
-@app.route("/apply", methods=["GET", "POST"])
-def apply():
-    if not session.get("logged_in"):
-        return redirect("/")
-
-    if request.method == "POST":
-        data = [
-            request.form["name"],
+# =========================
+# VERIFY OTP
+# =========================
+@app.route("/verify-otp", methods=["POST"])
+def verify_otp():
+    if request.form["otp"] == session.get("otp"):
+        save_to_csv([
+            session["name"],
             session["email"],
-            request.form["mobile"],
-            request.form["qualification"],
-            request.form["experience"],
-            request.form["job_role"],
-            "Pending"
-        ]
+            session["phone"]
+        ])
+        return "✅ Application Submitted Successfully"
+    else:
+        return "❌ Invalid OTP"
 
-        with open(DB_FILE, "a", newline="", encoding="utf-8") as f:
-            csv.writer(f).writerow(data)
-
-        send_email(
-            session["email"],
-            "Application Submitted",
-            "Your application is successfully submitted."
-        )
-
-        return "Application Submitted Successfully"
-
-    return render_template_string("""
-    <h2>Job Application</h2>
-    <form method="post">
-        Name: <input name="name" required><br>
-        Mobile: <input name="mobile" required><br>
-        Qualification:
-        <select name="qualification">
-            <option>10th</option><option>Inter</option>
-            <option>Degree</option><option>BTech</option>
-            <option>MTech</option><option>PhD</option>
-        </select><br>
-        Experience (Years): <input name="experience"><br>
-        Job Role:
-        <select name="job_role">
-            <option>Python Developer</option>
-            <option>Java Developer</option>
-            <option>Frontend Developer</option>
-            <option>Data Analyst</option>
-        </select><br><br>
-        <button>Submit</button>
-    </form>
-    """)
-
-# ===============================
-# ADMIN DASHBOARD (SEARCH + FILTER)
-# ===============================
+# =========================
+# ADMIN DASHBOARD
+# =========================
 @app.route("/admin")
 def admin():
-    if request.args.get("key") != "admin123":
-        return "Unauthorized"
-
-    q = request.args.get("q", "").lower()
-    role = request.args.get("role", "")
-
-    rows = []
-    with open(DB_FILE, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for r in reader:
-            if q and q not in r["name"].lower() and q not in r["email"].lower():
-                continue
-            if role and r["job_role"] != role:
-                continue
-            rows.append(r)
-
-    html = """
+    rows = ""
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE) as f:
+            rows = f.read().replace("\n", "<br>")
+    return f"""
     <h2>Admin Dashboard</h2>
-    <form>
-        Search: <input name="q">
-        Role:
-        <select name="role">
-            <option value="">All</option>
-            <option>Python Developer</option>
-            <option>Java Developer</option>
-            <option>Frontend Developer</option>
-            <option>Data Analyst</option>
-        </select>
-        <button>Filter</button>
-    </form>
-    <table border=1>
-        <tr>
-            <th>Name</th><th>Email</th><th>Mobile</th>
-            <th>Qualification</th><th>Exp</th>
-            <th>Role</th><th>Status</th>
-        </tr>
+    <div>{rows}</div>
     """
 
-    for r in rows:
-        html += f"""
-        <tr>
-            <td>{r['name']}</td>
-            <td>{r['email']}</td>
-            <td>{r['mobile']}</td>
-            <td>{r['qualification']}</td>
-            <td>{r['experience']}</td>
-            <td>{r['job_role']}</td>
-            <td>{r['status']}</td>
-        </tr>
-        """
-
-    html += "</table>"
-    return html
-
-# ===============================
-# RUN
-# ===============================
+# =========================
+# RENDER PORT BINDING
+# =========================
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
