@@ -4,7 +4,7 @@ from flask import Flask, render_template, request, redirect, url_for, send_file
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "velvoro_secret")
+app.secret_key = "velvoro_secret"
 
 UPLOAD_FOLDER = "uploads"
 DB_FILE = "velvoro_jobs.csv"
@@ -15,20 +15,21 @@ FIELDS = [
     "Name",
     "Phone",
     "Email",
-    "Category",
+    "Job_Type",
+    "Job_Post",
+    "Experience",
     "Country",
     "State",
     "District",
     "Resume"
 ]
 
-# ---------- INIT CSV ----------
+# Init CSV
 if not os.path.exists(DB_FILE):
     with open(DB_FILE, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(FIELDS)
 
-# ---------- HOME / JOB APPLY ----------
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
@@ -38,7 +39,7 @@ def index():
 
         resume = request.files.get("Resume")
         filename = ""
-        if resume:
+        if resume and resume.filename:
             filename = secure_filename(resume.filename)
             resume.save(os.path.join(UPLOAD_FOLDER, filename))
 
@@ -52,12 +53,10 @@ def index():
 
     return render_template("index.html")
 
-# ---------- SUCCESS ----------
 @app.route("/success")
 def success():
     return render_template("success.html")
 
-# ---------- ADMIN ----------
 @app.route("/admin")
 def admin():
     rows = []
@@ -68,11 +67,9 @@ def admin():
             rows.append(row)
     return render_template("admin.html", headers=headers, rows=rows)
 
-# ---------- DOWNLOAD EXCEL ----------
 @app.route("/download")
 def download():
     return send_file(DB_FILE, as_attachment=True)
 
-# ---------- RUN ----------
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run()
