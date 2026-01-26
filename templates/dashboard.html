@@ -1,12 +1,46 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Dashboard</title>
+    <title>Admin Dashboard</title>
 </head>
 <body>
-    <h2>Admin Dashboard</h2>
-    <p>Applications will appear here</p>
 
-    <a href="/">Back to Home</a>
+<h2>Admin Dashboard</h2>
+<a href="/logout">Logout</a>
+
+<table border="1" cellpadding="5">
+<tr>
+    <th>Name</th>
+    <th>Phone</th>
+    <th>Email</th>
+    <th>Experience</th>
+    <th>Qualification</th>
+    <th>Job Role</th>
+    <th>Country</th>
+    <th>State</th>
+    <th>District</th>
+    <th>Area</th>
+    <th>AI Score</th>
+    <th>Result</th>
+</tr>
+
+{% for row in tables %}
+<tr>
+    <td>{{ row.name }}</td>
+    <td>{{ row.phone }}</td>
+    <td>{{ row.email }}</td>
+    <td>{{ row.experience }}</td>
+    <td>{{ row.qualification }}</td>
+    <td>{{ row.job_role }}</td>
+    <td>{{ row.country }}</td>
+    <td>{{ row.state }}</td>
+    <td>{{ row.district }}</td>
+    <td>{{ row.area }}</td>
+    <td>{{ row.ai_score }}</td>
+    <td>{{ row.result }}</td>
+</tr>
+{% endfor %}
+
+</table>
 </body>
 </html>
