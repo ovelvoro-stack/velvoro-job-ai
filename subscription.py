@@ -1,4 +1,7 @@
-def can_post_job(plan):
+def can_use_ai(plan):
+    return plan in ["PRO", "ENTERPRISE"]
+
+def job_limit(plan):
     if plan == "FREE":
-        return False
-    return True
+        return 5
+    return 1000
