@@ -1,19 +1,20 @@
-from sqlalchemy import Column, Integer, String, Text
+from sqlalchemy import Column, Integer, String
 from database import Base
 
 class Application(Base):
     __tablename__ = "applications"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String)
-    email = Column(String)
-    role = Column(String)
-    q1 = Column(Text)
-    q2 = Column(Text)
-
-class Admin(Base):
-    __tablename__ = "admins"
-
     id = Column(Integer, primary_key=True)
-    username = Column(String, unique=True)
-    password = Column(String)
+    name = Column(String)
+    phone = Column(String)
+    email = Column(String)
+    country = Column(String)
+    state = Column(String)
+    district = Column(String)
+    area = Column(String)
+    experience = Column(Integer)
+    qualification = Column(String)
+    job_category = Column(String)
+    job_role = Column(String)
+    resume = Column(String)
+    result = Column(String)
