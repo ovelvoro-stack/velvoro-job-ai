@@ -1,95 +1,104 @@
-from flask import Flask, request, redirect, render_template_string
-import random
 import os
+import random
+from flask import Flask, request, render_template_string
 import requests
-import time
 
 app = Flask(__name__)
 
-# 🔐 In-memory OTP store (SAFE for MVP)
-otp_store = {}
+# In-memory OTP store (no session, no secret key)
+OTP_STORE = {}
 
-RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 
 HTML_FORM = """
-<h2>Velvoro Job AI – Email OTP</h2>
-<form method="post">
-  Email:<br>
-  <input type="email" name="email" required><br><br>
-  <button type="submit">Send OTP</button>
-</form>
+<!doctype html>
+<html>
+<head>
+  <title>Velvoro Job AI</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container mt-5">
+  <h2>Velvoro Job AI</h2>
+  <form method="POST">
+    <input class="form-control mb-2" name="email" placeholder="Enter Email" required>
+    <button class="btn btn-primary">Send OTP</button>
+  </form>
+  {% if msg %}
+    <div class="alert alert-info mt-3">{{ msg }}</div>
+  {% endif %}
+</div>
+</body>
+</html>
 """
 
 HTML_VERIFY = """
-<h2>Verify OTP</h2>
-<form method="post">
-  Email:<br>
-  <input type="email" name="email" required><br><br>
-  OTP:<br>
-  <input type="text" name="otp" required><br><br>
-  <button type="submit">Verify</button>
-</form>
-<p style="color:red;">{{msg}}</p>
+<!doctype html>
+<html>
+<head>
+  <title>Verify OTP</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container mt-5">
+  <h3>Enter OTP</h3>
+  <form method="POST">
+    <input type="hidden" name="email" value="{{ email }}">
+    <input class="form-control mb-2" name="otp" placeholder="Enter OTP" required>
+    <button class="btn btn-success">Verify</button>
+  </form>
+  {% if msg %}
+    <div class="alert alert-danger mt-3">{{ msg }}</div>
+  {% endif %}
+</div>
+</body>
+</html>
 """
-
-HTML_SUCCESS = """
-<h2>✅ OTP Verified Successfully</h2>
-<p>Welcome to Velvoro Job AI</p>
-"""
-
-def send_email(email, otp):
-    requests.post(
-        "https://api.resend.com/emails",
-        headers={
-            "Authorization": f"Bearer {RESEND_API_KEY}",
-            "Content-Type": "application/json"
-        },
-        json={
-            "from": "Velvoro Job AI <onboarding@resend.dev>",
-            "to": [email],
-            "subject": "Velvoro Job AI – OTP",
-            "html": f"<h3>Your OTP is <b>{otp}</b></h3><p>Valid for 5 minutes</p>"
-        },
-        timeout=10
-    )
 
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
         email = request.form["email"]
-        otp = str(random.randint(100000, 999999))
 
-        # store otp with timestamp
-        otp_store[email] = {
-            "otp": otp,
-            "time": time.time()
-        }
+        otp = random.randint(100000, 999999)
+        OTP_STORE[email] = otp
 
-        send_email(email, otp)
-        return redirect("/verify")
+        # Send email via Resend
+        res = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {RESEND_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "from": "Velvoro Job AI <onboarding@resend.dev>",
+                "to": [email],
+                "subject": "Velvoro Job AI – OTP",
+                "html": f"<h2>Your OTP is {otp}</h2>"
+            }
+        )
+
+        if res.status_code != 200:
+            return render_template_string(HTML_FORM, msg="Email failed")
+
+        return render_template_string(HTML_VERIFY, email=email)
 
     return render_template_string(HTML_FORM)
 
-@app.route("/verify", methods=["GET", "POST"])
+@app.route("/verify", methods=["POST"])
 def verify():
-    msg = ""
-    if request.method == "POST":
-        email = request.form["email"]
-        user_otp = request.form["otp"]
+    email = request.form["email"]
+    user_otp = request.form["otp"]
 
-        record = otp_store.get(email)
+    if email in OTP_STORE and str(OTP_STORE[email]) == user_otp:
+        OTP_STORE.pop(email)
+        return "<h2>✅ OTP Verified Successfully</h2>"
 
-        if not record:
-            msg = "OTP not found"
-        elif time.time() - record["time"] > 300:
-            msg = "OTP expired"
-        elif record["otp"] == user_otp:
-            otp_store.pop(email, None)
-            return render_template_string(HTML_SUCCESS)
-        else:
-            msg = "Invalid OTP"
-
-    return render_template_string(HTML_VERIFY, msg=msg)
+    return render_template_string(
+        HTML_VERIFY,
+        email=email,
+        msg="Invalid OTP"
+    )
 
 if __name__ == "__main__":
     app.run()
