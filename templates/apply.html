@@ -1,56 +1,17 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>AI Job Application</title>
+    <title>Apply Job</title>
 </head>
 <body>
-<h2>AI Powered Job Application</h2>
+    <h2>Job Application</h2>
 
-<form action="/apply" method="post" enctype="multipart/form-data">
+    <form method="post">
+        Name: <input type="text" name="name" required><br><br>
+        Email: <input type="email" name="email" required><br><br>
+        <button type="submit">Submit</button>
+    </form>
 
-<label>Name:</label><br>
-<input type="text" name="name" required><br><br>
-
-<label>Phone:</label><br>
-<input type="text" name="phone" required><br><br>
-
-<label>Email:</label><br>
-<input type="email" name="email" required><br><br>
-
-<label>Experience:</label><br>
-<select name="experience">
-    {% for i in range(0,31) %}
-    <option value="{{i}}">{{i}} Years</option>
-    {% endfor %}
-</select><br><br>
-
-<label>Qualification:</label><br>
-<select name="qualification">
-    <option>SSC</option>
-    <option>Intermediate</option>
-    <option>Diploma</option>
-    <option>Degree</option>
-    <option>PG</option>
-    <option>PhD</option>
-</select><br><br>
-
-<label>Job Role:</label><br>
-<select name="role">
-    <option>Software Developer</option>
-    <option>Testing</option>
-    <option>Data Entry</option>
-    <option>Pharma Staff</option>
-    <option>Medical Coding</option>
-</select><br><br>
-
-<label>Why should we hire you?</label><br>
-<textarea name="answer" required></textarea><br><br>
-
-<label>Resume:</label><br>
-<input type="file" name="resume" required><br><br>
-
-<button type="submit">Submit Application</button>
-
-</form>
+    <a href="/">Back to Home</a>
 </body>
 </html>
