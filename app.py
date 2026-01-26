@@ -1,69 +1,79 @@
-from flask import Flask, render_template, request, redirect, session
-import random, os
-import resend
-import google.generativeai as genai
+from flask import Flask, request, render_template_string, session, redirect
+import random
+import os
+import requests
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY")
 
-# Resend
-resend.api_key = os.environ.get("RESEND_API_KEY")
+# ✅ VERY IMPORTANT (Render compatible)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "fallback-secret")
 
-# Gemini
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
 
-DATA = []
+HTML_FORM = """
+<h2>Velvoro Job AI – Email OTP</h2>
+<form method="post">
+  Email:<br>
+  <input type="email" name="email" required><br><br>
+  <button type="submit">Send OTP</button>
+</form>
+"""
 
+HTML_VERIFY = """
+<h2>Verify OTP</h2>
+<form method="post">
+  OTP:<br>
+  <input type="text" name="otp" required><br><br>
+  <button type="submit">Verify</button>
+</form>
+<p style="color:red;">{{msg}}</p>
+"""
 
-def send_otp_email(to_email, otp):
-    resend.Emails.send({
-        "from": "Velvoro Job AI <onboarding@resend.dev>",
-        "to": to_email,
-        "subject": "Velvoro Job AI – OTP",
-        "html": f"<h2>Your OTP is <b>{otp}</b></h2>"
-    })
+HTML_SUCCESS = """
+<h2>✅ OTP Verified Successfully</h2>
+<p>Welcome to Velvoro Job AI</p>
+"""
 
-
-def ai_score(role):
-    model = genai.GenerativeModel("models/gemini-1.5-flash")
-    res = model.generate_content(
-        f"Evaluate candidate for job role {role}. Reply PASS or FAIL"
+def send_email_otp(email, otp):
+    response = requests.post(
+        "https://api.resend.com/emails",
+        headers={
+            "Authorization": f"Bearer {RESEND_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "from": "Velvoro Job AI <onboarding@resend.dev>",
+            "to": [email],
+            "subject": "Velvoro Job AI – OTP",
+            "html": f"<h3>Your OTP is <b>{otp}</b></h3><p>Valid for 5 minutes</p>",
+        },
+        timeout=10
     )
-    return res.text.strip()
-
+    print("Email status:", response.status_code)
 
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
-        otp = random.randint(100000, 999999)
-        session["otp"] = str(otp)
-        session["user"] = request.form.to_dict()
+        email = request.form["email"]
+        otp = str(random.randint(100000, 999999))
 
-        send_otp_email(session["user"]["email"], otp)
-        return redirect("/otp")
+        session["otp"] = otp
+        session["email"] = email
 
-    return render_template("index.html")
+        send_email_otp(email, otp)
+        return redirect("/verify")
 
+    return render_template_string(HTML_FORM)
 
-@app.route("/otp", methods=["GET", "POST"])
-def otp():
+@app.route("/verify", methods=["GET", "POST"])
+def verify():
+    msg = ""
     if request.method == "POST":
         if request.form["otp"] == session.get("otp"):
-            user = session["user"]
-            result = ai_score(user["job_role"])
-            user["ai_result"] = result
-            DATA.append(user)
-            return "✅ OTP Verified. Application Submitted."
+            return render_template_string(HTML_SUCCESS)
         else:
-            return "❌ Invalid OTP"
-
-    return render_template("otp.html")
-
-
-@app.route("/admin")
-def admin():
-    return render_template("admin.html", data=DATA)
-
+            msg = "❌ Invalid OTP"
+    return render_template_string(HTML_VERIFY, msg=msg)
 
 if __name__ == "__main__":
     app.run()
