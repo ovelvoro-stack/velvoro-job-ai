@@ -1,30 +1,17 @@
-from fastapi import FastAPI, Request, Form, Depends
+from fastapi import FastAPI, Request, Form, UploadFile, File, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
+import os, shutil
+from database import SessionLocal
+from models import Application
+from auth import verify_admin
 
-from database import SessionLocal, engine
-from models import Base, Application, Admin
-from auth import hash_password, verify_password
-
-app = FastAPI(title="Velvoro Job AI")
+app = FastAPI(title="Velvoro AI Powered Job Application")
 templates = Jinja2Templates(directory="templates")
 
-Base.metadata.create_all(bind=engine)
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-# ---------------- HOME ----------------
-@app.get("/", response_class=HTMLResponse)
-def home(request: Request):
-    return templates.TemplateResponse("home.html", {"request": request})
-
-# ---------------- APPLY ----------------
 @app.get("/apply", response_class=HTMLResponse)
 def apply_form(request: Request):
     return templates.TemplateResponse("apply.html", {"request": request})
@@ -32,40 +19,62 @@ def apply_form(request: Request):
 @app.post("/apply")
 def submit_apply(
     name: str = Form(...),
+    phone: str = Form(...),
     email: str = Form(...),
-    role: str = Form(...),
-    q1: str = Form(...),
-    q2: str = Form(...),
-    db: Session = Depends(get_db)
+    country: str = Form(...),
+    state: str = Form(...),
+    district: str = Form(...),
+    area: str = Form(...),
+    experience: int = Form(...),
+    qualification: str = Form(...),
+    job_category: str = Form(...),
+    job_role: str = Form(...),
+    answer: str = Form(...),
+    resume: UploadFile = File(...)
 ):
+    # Simple AI validation
+    if len(answer.strip()) < 10:
+        return {"status": "FAIL", "message": "You are not eligible"}
+
+    file_path = os.path.join(UPLOAD_DIR, resume.filename)
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(resume.file, buffer)
+
+    db = SessionLocal()
     app_data = Application(
-        name=name, email=email, role=role, q1=q1, q2=q2
+        name=name,
+        phone=phone,
+        email=email,
+        country=country,
+        state=state,
+        district=district,
+        area=area,
+        experience=experience,
+        qualification=qualification,
+        job_category=job_category,
+        job_role=job_role,
+        resume=file_path,
+        result="PASS"
     )
     db.add(app_data)
     db.commit()
-    return RedirectResponse("/apply", status_code=302)
+    db.close()
 
-# ---------------- ADMIN LOGIN ----------------
+    return {"status": "SUCCESS", "message": "Application Submitted"}
+
 @app.get("/admin", response_class=HTMLResponse)
 def admin_login(request: Request):
     return templates.TemplateResponse("admin_login.html", {"request": request})
 
 @app.post("/admin")
-def admin_auth(
-    username: str = Form(...),
-    password: str = Form(...),
-    db: Session = Depends(get_db)
-):
-    admin = db.query(Admin).filter(Admin.username == username).first()
-    if admin and verify_password(password, admin.password):
+def admin_auth(username: str = Form(...), password: str = Form(...)):
+    if verify_admin(username, password):
         return RedirectResponse("/dashboard", status_code=302)
-    return RedirectResponse("/admin", status_code=302)
+    return {"error": "Invalid credentials"}
 
-# ---------------- DASHBOARD ----------------
 @app.get("/dashboard", response_class=HTMLResponse)
-def dashboard(request: Request, db: Session = Depends(get_db)):
+def dashboard(request: Request):
+    db = SessionLocal()
     apps = db.query(Application).all()
-    return templates.TemplateResponse(
-        "admin_dashboard.html",
-        {"request": request, "applications": apps}
-    )
+    db.close()
+    return templates.TemplateResponse("dashboard.html", {"request": request, "apps": apps})
