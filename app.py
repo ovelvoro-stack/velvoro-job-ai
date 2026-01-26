@@ -5,10 +5,16 @@ import csv, os, random
 # SAFE GEMINI IMPORT
 # ======================
 try:
-    import google.generativeai as genai
-    GEMINI_AVAILABLE = True
-except Exception as e:
-    GEMINI_AVAILABLE = False
+   import google.generativeai as genai
+import os
+
+genai.configure(api_key=os.environ.get("AIzaSyB-Xil35VylfYAPZQvFzCjgzcwouWudkRU"))
+
+def generate_ai_question(role):
+    model = genai.GenerativeModel("models/gemini-1.5-flash")
+    prompt = f"Ask one interview question for the job role: {role}"
+    response = model.generate_content(prompt)
+    return response.text
 
 app = Flask(__name__)
 app.secret_key = "velvoro_secret_key"
