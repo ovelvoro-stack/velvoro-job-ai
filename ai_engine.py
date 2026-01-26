@@ -1,10 +1,11 @@
-def ai_score_candidate(experience, qualification):
+def score_resume(text):
+    keywords = [
+        "python","java","developer","experience",
+        "skills","project","sales","marketing"
+    ]
     score = 0
-
-    if experience.lower() != "fresher":
-        score += 50
-    if qualification.lower() in ["degree","btech","mba"]:
-        score += 50
-
-    result = "PASS" if score >= 50 else "FAIL"
-    return score, result
+    text = text.lower()
+    for k in keywords:
+        if k in text:
+            score += 10
+    return min(score, 100)
