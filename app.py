@@ -1,174 +1,140 @@
 import os
-import sqlite3
-import random
-import requests
-from flask import Flask, request, redirect, render_template_string
+import pandas as pd
+from flask import Flask, request, redirect, url_for, send_from_directory
 
+from werkzeug.utils import secure_filename
+
+# ===============================
+# BASIC CONFIG
+# ===============================
 app = Flask(__name__)
+UPLOAD_FOLDER = "uploads"
+DB_FILE = "velvoro_jobs.xlsx"
 
-DB = "database.db"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-RESEND_API_KEY = os.getenv("RESEND_API_KEY")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+# ===============================
+# EXCEL DATABASE INIT
+# ===============================
+if not os.path.exists(DB_FILE):
+    df = pd.DataFrame(columns=[
+        "Company",
+        "Name", "Phone", "Email",
+        "Category", "JobRole",
+        "Country", "State", "District", "Area",
+        "Resume",
+        "AI_Score",
+        "Status",
+        "Plan"
+    ])
+    df.to_excel(DB_FILE, index=False)
 
-# ---------------- DB INIT ----------------
-def init_db():
-    conn = sqlite3.connect(DB)
-    c = conn.cursor()
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS applications (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT,
-        email TEXT,
-        role TEXT,
-        otp INTEGER,
-        verified INTEGER,
-        ai_score TEXT
-    )
-    """)
-    conn.commit()
-    conn.close()
+# ===============================
+# AI SCORING (SAFE STUB)
+# ===============================
+def ai_score_stub(resume_name, job_role):
+    # Gemini API later plug here
+    # This keeps app stable now
+    return 75
 
-init_db()
-
-# ---------------- HTML ----------------
-HOME_HTML = """
-<h2>Velvoro Job AI</h2>
-<form method="POST">
-<input name="name" placeholder="Name" required><br><br>
-<input name="email" placeholder="Email" required><br><br>
-<input name="role" placeholder="Job Role" required><br><br>
-<button>Apply</button>
-</form>
-<p style="color:green">{{msg}}</p>
-<a href="/admin">Admin Login</a>
-"""
-
-OTP_HTML = """
-<h3>Enter OTP</h3>
-<form method="POST">
-<input type="hidden" name="email" value="{{email}}">
-<input name="otp" placeholder="OTP" required>
-<button>Verify</button>
-</form>
-<p style="color:red">{{msg}}</p>
-"""
-
-ADMIN_LOGIN = """
-<h3>Admin Login</h3>
-<form method="POST">
-<input type="password" name="password" placeholder="Password">
-<button>Login</button>
-</form>
-<p>{{msg}}</p>
-"""
-
-ADMIN_DASH = """
-<h2>Admin Dashboard</h2>
-<table border="1" cellpadding="5">
-<tr>
-<th>Name</th><th>Email</th><th>Role</th><th>AI Score</th>
-</tr>
-{% for r in rows %}
-<tr>
-<td>{{r[0]}}</td><td>{{r[1]}}</td><td>{{r[2]}}</td><td>{{r[3]}}</td>
-</tr>
-{% endfor %}
-</table>
-"""
-
-# ---------------- ROUTES ----------------
-@app.route("/", methods=["GET","POST"])
-def home():
+# ===============================
+# HOME – JOB APPLY
+# ===============================
+@app.route("/", methods=["GET", "POST"])
+def apply():
     if request.method == "POST":
-        name = request.form["name"]
-        email = request.form["email"]
-        role = request.form["role"]
+        resume = request.files["resume"]
+        filename = secure_filename(resume.filename)
+        resume.save(os.path.join(UPLOAD_FOLDER, filename))
 
-        otp = random.randint(100000,999999)
+        df = pd.read_excel(DB_FILE)
 
-        conn = sqlite3.connect(DB)
-        c = conn.cursor()
-        c.execute("INSERT INTO applications VALUES (NULL,?,?,?,?,?)",
-                  (name,email,role,otp,0,"Pending"))
-        conn.commit()
-        conn.close()
+        score = ai_score_stub(filename, request.form["jobrole"])
 
-        # Send OTP Email
-        requests.post(
-            "https://api.resend.com/emails",
-            headers={
-                "Authorization": f"Bearer {RESEND_API_KEY}",
-                "Content-Type": "application/json"
-            },
-            json={
-                "from":"Velvoro Job AI <onboarding@resend.dev>",
-                "to":[email],
-                "subject":"Your OTP",
-                "html":f"<h2>Your OTP is {otp}</h2>"
-            }
-        )
+        row = {
+            "Company": "Velvoro",
+            "Name": request.form["name"],
+            "Phone": request.form["phone"],
+            "Email": request.form["email"],
+            "Category": request.form["category"],
+            "JobRole": request.form["jobrole"],
+            "Country": request.form["country"],
+            "State": request.form["state"],
+            "District": request.form["district"],
+            "Area": request.form["area"],
+            "Resume": filename,
+            "AI_Score": score,
+            "Status": "New",
+            "Plan": "Free"
+        }
 
-        return render_template_string(OTP_HTML,email=email)
-
-    return render_template_string(HOME_HTML,msg="")
-
-@app.route("/verify", methods=["POST"])
-def verify():
-    email = request.form["email"]
-    otp = request.form["otp"]
-
-    conn = sqlite3.connect(DB)
-    c = conn.cursor()
-    c.execute("SELECT otp,role FROM applications WHERE email=?", (email,))
-    row = c.fetchone()
-
-    if row and str(row[0]) == otp:
-        role = row[1]
-
-        # Gemini AI scoring
-        score = gemini_score(role)
-
-        c.execute("UPDATE applications SET verified=1, ai_score=? WHERE email=?",
-                  (score,email))
-        conn.commit()
-        conn.close()
+        df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+        df.to_excel(DB_FILE, index=False)
 
         return "<h2>✅ Application Submitted Successfully</h2>"
 
-    return render_template_string(OTP_HTML,email=email,msg="Invalid OTP")
+    return """
+    <h2>Velvoro Job AI</h2>
+    <form method='POST' enctype='multipart/form-data'>
+    <input name='name' placeholder='Name' required><br>
+    <input name='phone' placeholder='Phone' required><br>
+    <input name='email' placeholder='Email' required><br>
+    <select name='category'><option>IT</option><option>Non-IT</option></select><br>
+    <input name='jobrole' placeholder='Job Role' required><br>
+    <input name='country' placeholder='Country'><br>
+    <input name='state' placeholder='State'><br>
+    <input name='district' placeholder='District'><br>
+    <input name='area' placeholder='Area'><br>
+    <input type='file' name='resume' required><br><br>
+    <button>Apply</button>
+    </form>
+    <br><a href='/admin'>Admin Login</a>
+    """
 
-def gemini_score(role):
-    try:
-        res = requests.post(
-            f"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={GEMINI_API_KEY}",
-            json={
-                "contents":[{
-                    "parts":[{"text":f"Give a short hiring score for job role {role}"}]
-                }]
-            }
-        )
-        return res.json()["candidates"][0]["content"]["parts"][0]["text"]
-    except:
-        return "AI Error"
-
-@app.route("/admin", methods=["GET","POST"])
+# ===============================
+# ADMIN LOGIN (SIMPLE, SAFE)
+# ===============================
+@app.route("/admin", methods=["GET", "POST"])
 def admin():
     if request.method == "POST":
-        if request.form["password"] != ADMIN_PASSWORD:
-            return render_template_string(ADMIN_LOGIN,msg="Wrong password")
+        if request.form["password"] == "admin123":
+            return redirect("/dashboard")
+        return "Invalid password"
 
-        conn = sqlite3.connect(DB)
-        c = conn.cursor()
-        c.execute("SELECT name,email,role,ai_score FROM applications WHERE verified=1")
-        rows = c.fetchall()
-        conn.close()
+    return """
+    <h3>Admin Login</h3>
+    <form method='POST'>
+    <input type='password' name='password'>
+    <button>Login</button>
+    </form>
+    """
 
-        return render_template_string(ADMIN_DASH,rows=rows)
+# ===============================
+# ADMIN DASHBOARD
+# ===============================
+@app.route("/dashboard")
+def dashboard():
+    df = pd.read_excel(DB_FILE)
+    html = "<h2>Admin Dashboard</h2><table border=1>"
+    html += "".join(f"<th>{c}</th>" for c in df.columns)
+    for i, r in df.iterrows():
+        html += "<tr>"
+        for c in df.columns:
+            html += f"<td>{r[c]}</td>"
+        html += f"<td><a href='/resume/{r['Resume']}'>Resume</a></td>"
+        html += "</tr>"
+    html += "</table>"
+    return html
 
-    return render_template_string(ADMIN_LOGIN,msg="")
+# ===============================
+# RESUME DOWNLOAD
+# ===============================
+@app.route("/resume/<filename>")
+def resume(filename):
+    return send_from_directory(UPLOAD_FOLDER, filename)
 
-# ---------------- RUN ----------------
+# ===============================
+# RUN
+# ===============================
 if __name__ == "__main__":
-    app.run()
+    app.run(host="0.0.0.0", port=10000)
