@@ -1,19 +1,15 @@
-from flask import Blueprint, render_template, request, redirect, session
+from flask import session, redirect, url_for
+import csv, os
 
-auth = Blueprint("auth", __name__)
+ADMIN_FILE = "data/admins.csv"
 
-ADMIN_USER = "admin"
-ADMIN_PASS = "velvoro123"
+def check_login(username, password):
+    with open(ADMIN_FILE, newline="", encoding="utf-8") as f:
+        for row in csv.reader(f):
+            if row[0] == username and row[1] == password:
+                return True
+    return False
 
-@auth.route("/admin/login", methods=["GET","POST"])
-def login():
-    if request.method == "POST":
-        if request.form["username"] == ADMIN_USER and request.form["password"] == ADMIN_PASS:
-            session["admin"] = True
-            return redirect("/admin")
-    return render_template("admin_login.html")
-
-@auth.route("/admin/logout")
-def logout():
-    session.clear()
-    return redirect("/")
+def login_required():
+    if not session.get("admin"):
+        return redirect(url_for("login"))
