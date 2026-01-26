@@ -1,38 +1,35 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Velvoro Job AI – Apply</title>
-</head>
-<body>
-<h2>Velvoro Job AI – Job Application</h2>
+{% extends "base.html" %}
+{% block content %}
+<h3>Job Application</h3>
 
-<form method="post">
-    <input name="name" placeholder="Full Name" required><br><br>
-    <input name="phone" placeholder="Mobile Number" required><br><br>
-    <input name="email" placeholder="Email" required><br><br>
+<form method="post" enctype="multipart/form-data">
+    <input class="form-control mb-2" name="name" placeholder="Full Name" required>
+    <input class="form-control mb-2" name="phone" placeholder="Mobile Number" required>
+    <input class="form-control mb-2" name="email" placeholder="Email" required>
 
-    <select name="experience">
+    <select class="form-control mb-2" name="experience">
         <option>Fresher</option>
         <option>1-3 Years</option>
-        <option>3-5 Years</option>
-        <option>5+ Years</option>
-    </select><br><br>
+        <option>3+ Years</option>
+    </select>
 
-    <select name="qualification">
+    <select class="form-control mb-2" name="qualification">
         <option>10th</option>
         <option>Inter</option>
-        <option>Diploma</option>
         <option>Degree</option>
-        <option>PG</option>
-    </select><br><br>
+        <option>B.Tech</option>
+        <option>M.Tech</option>
+    </select>
 
-    <input name="job_role" placeholder="Job Role" required><br><br>
-    <input name="country" value="India"><br><br>
-    <input name="state" placeholder="State"><br><br>
-    <input name="district" placeholder="District"><br><br>
-    <input name="area" placeholder="Area"><br><br>
+    <input class="form-control mb-2" name="job_role" placeholder="Job Role">
+    <input class="form-control mb-2" name="country" placeholder="Country">
+    <input class="form-control mb-2" name="state" placeholder="State">
+    <input class="form-control mb-2" name="district" placeholder="District">
+    <input class="form-control mb-2" name="area" placeholder="Area">
 
-    <button type="submit">Submit Application</button>
+    <label>Upload Resume</label>
+    <input class="form-control mb-3" type="file" name="resume" required>
+
+    <button class="btn btn-success">Submit Application</button>
 </form>
-</body>
-</html>
+{% endblock %}
