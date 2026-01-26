@@ -1,22 +1,24 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Admin Dashboard</title>
-</head>
-<body>
-<h2>Admin Dashboard</h2>
+{% extends "base.html" %}
+{% block content %}
+<h3>Admin Dashboard</h3>
 
-<table border="1">
-    {% for row in rows %}
-    <tr>
-        {% for col in row %}
-        <td>{{ col }}</td>
-        {% endfor %}
-    </tr>
-    {% endfor %}
+<form method="get">
+    <input class="form-control mb-3" name="search" placeholder="Search name / role / result">
+</form>
+
+<table class="table table-bordered">
+<tr>
+<th>Name</th><th>Role</th><th>Score</th><th>Result</th>
+</tr>
+{% for c in candidates %}
+<tr>
+<td>{{c.name}}</td>
+<td>{{c.job_role}}</td>
+<td>{{c.ai_score}}</td>
+<td>{{c.result}}</td>
+</tr>
+{% endfor %}
 </table>
 
-<br>
-<a href="/">Back to Home</a>
-</body>
-</html>
+<a href="/logout" class="btn btn-danger">Logout</a>
+{% endblock %}
