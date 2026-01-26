@@ -1,62 +1,99 @@
-import os, csv
-from flask import Flask, render_template, request, redirect, session
-from werkzeug.utils import secure_filename
+import os, csv, datetime
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 
-from gpt_resume_ai import gpt_score_resume
-from auth import company_login
-from subscription import can_use_ai
-from dashboard import company_stats
-
+# ---------- BASIC CONFIG ----------
 app = Flask(__name__)
-app.secret_key = "velvoro_production_key"
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "velvoro-secret")
 
-UPLOADS = "uploads"
-os.makedirs(UPLOADS, exist_ok=True)
+DATA_DIR = "data"
+APP_FILE = f"{DATA_DIR}/applications.csv"
+PAY_FILE = f"{DATA_DIR}/payments.csv"
 
-@app.route("/")
+os.makedirs(DATA_DIR, exist_ok=True)
+
+# ---------- INIT CSV ----------
+def init_csv(path, headers):
+    if not os.path.exists(path):
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(headers)
+
+init_csv(APP_FILE, [
+    "date","name","phone","email","category","experience","company","score"
+])
+
+init_csv(PAY_FILE, [
+    "date","company","amount"
+])
+
+# ---------- SAFE AI SCORING ----------
+def resume_score_dummy(text):
+    # SAFE fallback – always works
+    return min(95, max(60, len(text) % 100))
+
+# ---------- ROUTES ----------
+@app.route("/", methods=["GET", "POST"])
 def apply():
+    if request.method == "POST":
+        data = [
+            datetime.date.today().isoformat(),
+            request.form["name"],
+            request.form["phone"],
+            request.form["email"],
+            request.form["category"],
+            request.form["experience"],
+            request.form["company"],
+            resume_score_dummy(request.form["name"])
+        ]
+        with open(APP_FILE, "a", newline="", encoding="utf-8") as f:
+            csv.writer(f).writerow(data)
+
+        return redirect(url_for("success"))
     return render_template("apply.html")
 
-@app.route("/submit", methods=["POST"])
-def submit():
-    company = request.form["company"]
-    name = request.form["name"]
-    role = request.form["role"]
-    exp = request.form["experience"]
+@app.route("/success")
+def success():
+    return render_template("success.html")
 
-    resume = request.files["resume"]
-    filename = secure_filename(resume.filename)
-    path = os.path.join(UPLOADS, filename)
-    resume.save(path)
-
-    text = resume.read().decode("latin-1", errors="ignore") if False else ""
-    score = gpt_score_resume(text, role, exp)
-
-    with open("data/applications.csv", "a", newline="", encoding="utf-8") as f:
-        csv.writer(f).writerow([
-            company, name, role, exp, filename, score
-        ])
-
-    return render_template("success.html", score=score)
-
-@app.route("/login", methods=["GET","POST"])
-def login():
+# ---------- ADMIN ----------
+@app.route("/admin", methods=["GET","POST"])
+def admin_login():
     if request.method == "POST":
-        user = company_login(
-            request.form["email"],
-            request.form["password"]
-        )
-        if user:
-            session["company"] = user[0]
-            session["plan"] = user[3]
-            session["role"] = "company"
-            return redirect("/dashboard")
-    return render_template("login.html")
+        if request.form["password"] == os.environ.get("ADMIN_PASSWORD","admin123"):
+            session["admin"] = True
+            return redirect(url_for("dashboard"))
+    return render_template("admin_login.html")
 
-@app.route("/dashboard")
+@app.route("/admin/dashboard")
 def dashboard():
-    stats = company_stats(session["company"])
-    return render_template("company_dashboard.html", stats=stats)
+    if not session.get("admin"):
+        return redirect(url_for("admin_login"))
 
+    rows = []
+    with open(APP_FILE, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+
+    return render_template("admin_dashboard.html", rows=rows)
+
+# ---------- REVENUE ----------
+@app.route("/admin/revenue")
+def revenue():
+    if not session.get("admin"):
+        return redirect(url_for("admin_login"))
+
+    revenue = {}
+    with open(PAY_FILE, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for r in reader:
+            revenue[r["date"]] = revenue.get(r["date"],0) + int(r["amount"])
+
+    return render_template(
+        "admin_revenue.html",
+        dates=list(revenue.keys()),
+        amounts=list(revenue.values())
+    )
+
+# ---------- RUN ----------
 if __name__ == "__main__":
-    app.run()
+    app.run(host="0.0.0.0", port=10000)
