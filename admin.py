@@ -1,5 +1,18 @@
-from flask import session, redirect, url_for
-from config import ADMIN_USERNAME, ADMIN_PASSWORD
+from flask import Blueprint, render_template, session, redirect
+import csv
 
-def admin_login_check(username, password):
-    return username == ADMIN_USERNAME and password == ADMIN_PASSWORD
+admin = Blueprint("admin", __name__)
+
+@admin.route("/admin")
+def dashboard():
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    rows = []
+    with open("data/applications.csv", encoding="utf-8") as f:
+        reader = csv.reader(f)
+        headers = next(reader)
+        for r in reader:
+            rows.append(r)
+
+    return render_template("admin_dashboard.html", headers=headers, rows=rows)
