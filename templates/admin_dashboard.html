@@ -1,11 +1,2 @@
 <h2>Admin Dashboard</h2>
-<table border="1">
-<tr><th>Name</th><th>Email</th><th>Role</th></tr>
-{% for a in applications %}
-<tr>
-<td>{{a.name}}</td>
-<td>{{a.email}}</td>
-<td>{{a.role}}</td>
-</tr>
-{% endfor %}
-</table>
+Total Applications: {{count[0]}}
