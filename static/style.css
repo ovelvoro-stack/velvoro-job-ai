@@ -1,11 +1,36 @@
 body {
     font-family: Arial;
-    padding: 40px;
+    background: #f4f6f8;
 }
-input, select, button {
-    margin: 6px;
+
+.container {
+    width: 700px;
+    margin: auto;
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+}
+
+h1 {
+    background: #1e88e5;
+    color: white;
+    padding: 10px;
+}
+
+label {
+    display: block;
+    margin-top: 10px;
+}
+
+input, select, textarea {
+    width: 100%;
     padding: 8px;
 }
+
 button {
-    cursor: pointer;
+    margin-top: 15px;
+    background: #1e88e5;
+    color: white;
+    padding: 10px;
+    border: none;
 }
