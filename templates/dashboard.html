@@ -1,21 +1,36 @@
-<h2>Admin Dashboard</h2>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard</title>
+</head>
+<body>
+
+<h2>Applications Dashboard</h2>
 
 <table border="1">
 <tr>
-  <th>Name</th>
-  <th>Email</th>
-  <th>Role</th>
-  <th>Score</th>
-  <th>Result</th>
+    <th>Name</th>
+    <th>Phone</th>
+    <th>Email</th>
+    <th>Experience</th>
+    <th>Qualification</th>
+    <th>Role</th>
+    <th>Result</th>
 </tr>
 
-{% for a in apps %}
+{% for row in data %}
 <tr>
-  <td>{{a.name}}</td>
-  <td>{{a.email}}</td>
-  <td>{{a.role}}</td>
-  <td>{{a.score}}</td>
-  <td>{{a.result}}</td>
+    <td>{{row.name}}</td>
+    <td>{{row.phone}}</td>
+    <td>{{row.email}}</td>
+    <td>{{row.experience}}</td>
+    <td>{{row.qualification}}</td>
+    <td>{{row.role}}</td>
+    <td>{{row.result}}</td>
 </tr>
 {% endfor %}
+
 </table>
+
+</body>
+</html>
