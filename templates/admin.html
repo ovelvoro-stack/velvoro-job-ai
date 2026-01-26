@@ -1,14 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Admin</title>
+</head>
+<body>
 <h2>Admin Dashboard</h2>
-<table border="1">
+
+<a href="/download">⬇ Download Excel</a>
+
+<table border="1" cellpadding="5">
 <tr>
-<th>Name</th><th>Email</th><th>Role</th><th>AI Result</th>
+{% for h in headers %}
+<th>{{h}}</th>
+{% endfor %}
 </tr>
-{% for u in data %}
+
+{% for row in rows %}
 <tr>
-<td>{{u.name}}</td>
-<td>{{u.email}}</td>
-<td>{{u.job_role}}</td>
-<td>{{u.ai_result}}</td>
+{% for col in row %}
+<td>{{col}}</td>
+{% endfor %}
 </tr>
 {% endfor %}
 </table>
+
+</body>
+</html>
