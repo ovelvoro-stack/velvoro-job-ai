@@ -1,117 +1,177 @@
-from flask import Flask, request, redirect, session, render_template_string
-import csv, os, random, smtplib
+from flask import Flask, request, redirect, session, url_for, render_template_string
+import csv, os, random, smtplib, razorpay
 from email.mime.text import MIMEText
+import google.generativeai as genai
 
+# ---------------- APP ----------------
 app = Flask(__name__)
 app.secret_key = "velvoro_secret_key"
-
 DB_FILE = "applications.csv"
 
-# =========================
-# EMAIL CONFIG (Render ENV)
-# =========================
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
-EMAIL_SENDER = os.environ.get("EMAIL_SENDER")      # your gmail
-EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")  # gmail app password
+# ---------------- ENV ----------------
+EMAIL_SENDER = os.environ.get("EMAIL_SENDER")
+EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL")
 
-# =========================
-# UTILS
-# =========================
-def send_email(to_email, subject, body):
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+
+razorpay_client = razorpay.Client(
+    auth=(os.environ.get("RAZORPAY_KEY_ID"),
+          os.environ.get("RAZORPAY_KEY_SECRET"))
+)
+
+# ---------------- UTIL ----------------
+def send_email(to, subject, body):
     msg = MIMEText(body)
     msg["Subject"] = subject
     msg["From"] = EMAIL_SENDER
-    msg["To"] = to_email
+    msg["To"] = to
 
-    server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+    server = smtplib.SMTP("smtp.gmail.com", 587)
     server.starttls()
     server.login(EMAIL_SENDER, EMAIL_PASSWORD)
     server.send_message(msg)
     server.quit()
 
-def save_to_csv(row):
-    file_exists = os.path.exists(DB_FILE)
-    with open(DB_FILE, "a", newline="") as f:
-        writer = csv.writer(f)
-        if not file_exists:
-            writer.writerow(["Name", "Email", "Phone"])
-        writer.writerow(row)
+def generate_ai_question(role):
+    model = genai.GenerativeModel("models/gemini-1.5-flash")
+    res = model.generate_content(f"Ask one interview question for {role}")
+    return res.text
 
-# =========================
-# HOME – JOB FORM
-# =========================
-@app.route("/")
-def home():
+# ---------------- OTP LOGIN ----------------
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        email = request.form["email"]
+        otp = random.randint(100000, 999999)
+        session["otp"] = otp
+        session["email"] = email
+        send_email(email, "Velvoro OTP", f"Your OTP is {otp}")
+        return redirect("/verify")
+
     return render_template_string("""
-    <h2>Velvoro Job Application</h2>
-    <form method="post" action="/send-otp">
-        Name:<br><input name="name" required><br><br>
-        Email:<br><input name="email" required><br><br>
-        Phone:<br><input name="phone" required><br><br>
-        <button type="submit">Send OTP</button>
+    <h2>Login</h2>
+    <form method="post">
+      <input name="email" required>
+      <button>Send OTP</button>
     </form>
     """)
 
-# =========================
-# SEND OTP
-# =========================
-@app.route("/send-otp", methods=["POST"])
-def send_otp():
-    session["name"] = request.form["name"]
-    session["email"] = request.form["email"]
-    session["phone"] = request.form["phone"]
-
-    otp = str(random.randint(100000, 999999))
-    session["otp"] = otp
-
-    send_email(
-        session["email"],
-        "Velvoro OTP Verification",
-        f"Your OTP is: {otp}"
-    )
-
+@app.route("/verify", methods=["GET", "POST"])
+def verify():
+    if request.method == "POST":
+        if int(request.form["otp"]) == session.get("otp"):
+            session["user"] = session["email"]
+            return redirect("/")
     return render_template_string("""
-    <h3>OTP sent to your email</h3>
-    <form method="post" action="/verify-otp">
-        Enter OTP:<br>
-        <input name="otp" required><br><br>
-        <button type="submit">Verify</button>
+    <h3>Verify OTP</h3>
+    <form method="post">
+      <input name="otp">
+      <button>Verify</button>
     </form>
     """)
 
-# =========================
-# VERIFY OTP
-# =========================
-@app.route("/verify-otp", methods=["POST"])
-def verify_otp():
-    if request.form["otp"] == session.get("otp"):
-        save_to_csv([
-            session["name"],
-            session["email"],
-            session["phone"]
-        ])
-        return "✅ Application Submitted Successfully"
-    else:
-        return "❌ Invalid OTP"
+# ---------------- JOB FORM ----------------
+@app.route("/", methods=["GET", "POST"])
+def index():
+    if "user" not in session:
+        return redirect("/login")
 
-# =========================
-# ADMIN DASHBOARD
-# =========================
+    if request.method == "POST":
+        role = request.form["role"]
+        question = generate_ai_question(role)
+
+        with open(DB_FILE, "a", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                random.randint(1000,9999),
+                request.form["name"],
+                session["user"],
+                role,
+                "PENDING",
+                "NO"
+            ])
+
+        return f"<h3>AI Question</h3><p>{question}</p><a href='/pay'>Pay & Post Job</a>"
+
+    return render_template_string("""
+    <h2>Post Job</h2>
+    <form method="post">
+      <input name="name" placeholder="Name" required><br>
+      <input name="role" placeholder="Job Role" required><br>
+      <button>Submit</button>
+    </form>
+    """)
+
+# ---------------- PAYMENT ----------------
+@app.route("/pay")
+def pay():
+    order = razorpay_client.order.create({
+        "amount": 29900,
+        "currency": "INR",
+        "payment_capture": 1
+    })
+    return render_template_string("""
+    <h2>Pay ₹299</h2>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script>
+    Razorpay({
+      key: "{{key}}",
+      amount: 29900,
+      order_id: "{{order}}"
+    }).open();
+    </script>
+    """, key=os.environ.get("RAZORPAY_KEY_ID"), order=order["id"])
+
+# ---------------- ADMIN ----------------
 @app.route("/admin")
 def admin():
-    rows = ""
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE) as f:
-            rows = f.read().replace("\n", "<br>")
-    return f"""
-    <h2>Admin Dashboard</h2>
-    <div>{rows}</div>
-    """
+    if session.get("user") != ADMIN_EMAIL:
+        return "Unauthorized"
 
-# =========================
-# RENDER PORT BINDING
-# =========================
+    q = request.args.get("q", "").lower()
+    rows = []
+
+    with open(DB_FILE) as f:
+        reader = csv.reader(f)
+        for r in reader:
+            if q in ",".join(r).lower():
+                rows.append(r)
+
+    return render_template_string("""
+    <h2>Admin Dashboard</h2>
+    <form>
+      <input name="q" placeholder="search">
+    </form>
+    {% for r in rows %}
+      <p>{{r}}</p>
+      <a href="/approve/{{r[0]}}">Approve</a> |
+      <a href="/reject/{{r[0]}}">Reject</a>
+    {% endfor %}
+    """, rows=rows)
+
+@app.route("/approve/<id>")
+def approve(id):
+    update_status(id, "APPROVED")
+    return redirect("/admin")
+
+@app.route("/reject/<id>")
+def reject(id):
+    update_status(id, "REJECTED")
+    return redirect("/admin")
+
+def update_status(id, status):
+    rows = []
+    with open(DB_FILE) as f:
+        reader = csv.reader(f)
+        for r in reader:
+            if r and r[0] == id:
+                r[4] = status
+            rows.append(r)
+
+    with open(DB_FILE, "w", newline="") as f:
+        csv.writer(f).writerows(rows)
+
+# ---------------- RUN ----------------
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=10000)
