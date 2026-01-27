@@ -1,148 +1,142 @@
-from flask import Flask, request, render_template_string, redirect, url_for
-import csv, os, uuid, smtplib
+import os
+import csv
+import uuid
+import smtplib
 from email.mime.text import MIMEText
+from flask import Flask, request, render_template_string, redirect, url_for
 from werkzeug.utils import secure_filename
 
-# ======================
-# CONFIG
-# ======================
-UPLOAD_FOLDER = "uploads"
-DATA_FILE = "applications.csv"
-ALLOWED_EXTENSIONS = {"pdf", "doc", "docx"}
-
-CURRENT_PLAN = os.getenv("SAAS_PLAN", "FREE")  # FREE / PRO / ENTERPRISE
-
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-SMTP_EMAIL = os.getenv("SMTP_EMAIL")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
-
-COMPANY_NAME = "Velvoro Software Solution"
-
 app = Flask(__name__)
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config["UPLOAD_FOLDER"] = "uploads"
+os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
-# ======================
-# QUESTIONS
-# ======================
+DATA_FILE = "applications.csv"
+
+# ------------------------
+# QUESTIONS CONFIG
+# ------------------------
 IT_QUESTIONS = [
     "Explain your backend architecture experience.",
-    "How do you design scalable APIs?",
-    "How do you handle production issues?"
+    "Which programming languages and frameworks have you worked with?",
+    "How do you handle performance and scalability?"
 ]
 
 NON_IT_QUESTIONS = [
-    "Explain your previous work experience.",
-    "How do you handle pressure at work?",
-    "How do you manage team coordination?"
+    "Describe your previous work experience.",
+    "How do you handle pressure and deadlines?",
+    "Why should we hire you for this role?"
 ]
 
-# ======================
-# HELPERS
-# ======================
-def allowed_file(filename):
-    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+# ------------------------
+# CSV INIT
+# ------------------------
+if not os.path.exists(DATA_FILE):
+    with open(DATA_FILE, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            "name","phone","email","job_role","experience",
+            "country","state","district","area",
+            "q1","q2","q3",
+            "ai_score","result"
+        ])
 
-def ai_score_resume(text):
-    if not OPENAI_API_KEY:
-        return 60  # safe fallback
-    # Real OpenAI call can be added here later
-    return 80
+# ------------------------
+# AI SCORING (SAFE)
+# ------------------------
+def score_resume(text):
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return 50
+    # placeholder for real OpenAI call
+    return min(100, 60 + len(text) % 40)
 
-def send_confirmation_email(name, email, job):
-    if not SMTP_EMAIL or not SMTP_PASSWORD:
+# ------------------------
+# EMAIL (SAFE)
+# ------------------------
+def send_email(to_email, name, role):
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_pass = os.getenv("SMTP_PASS")
+    if not smtp_user or not smtp_pass:
         return
-    try:
-        msg = MIMEText(
-            f"""
-Hello {name},
+    msg = MIMEText(
+        f"""Dear {name},
 
-Thank you for applying to {COMPANY_NAME}.
+Thank you for applying for the {role} position at Velvoro Software Solution.
 
-Job Role: {job}
-
-Our team will review your profile.
+Our team will review your application.
 
 Regards,
-{COMPANY_NAME} Hiring Team
+Velvoro HR Team
 """
-        )
-        msg["Subject"] = "Application Received – Velvoro"
-        msg["From"] = SMTP_EMAIL
-        msg["To"] = email
+    )
+    msg["Subject"] = "Application Received – Velvoro"
+    msg["From"] = smtp_user
+    msg["To"] = to_email
 
-        server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
-        server.login(SMTP_EMAIL, SMTP_PASSWORD)
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(smtp_user, smtp_pass)
         server.send_message(msg)
-        server.quit()
-    except Exception:
-        pass  # safe fallback
 
-# ======================
+# ------------------------
 # ROUTES
-# ======================
+# ------------------------
 @app.route("/", methods=["GET", "POST"])
-def apply():
+def index():
     result = None
     if request.method == "POST":
-        name = request.form["name"]
-        phone = request.form["phone"]
-        email = request.form["email"]
-        job = request.form["job"]
-        country = request.form["country"]
-        state = request.form["state"]
-        district = request.form["district"]
-        area = request.form["area"]
+        name = request.form.get("name")
+        phone = request.form.get("phone")
+        email = request.form.get("email")
+        job_role = request.form.get("job_role")
+        experience = request.form.get("experience")
+        country = request.form.get("country")
+        state = request.form.get("state")
+        district = request.form.get("district")
+        area = request.form.get("area")
 
-        q1 = request.form.get("q1", "")
-        q2 = request.form.get("q2", "")
-        q3 = request.form.get("q3", "")
+        q1 = request.form.get("q1","")
+        q2 = request.form.get("q2","")
+        q3 = request.form.get("q3","")
 
+        resume = request.files.get("resume")
         resume_text = ""
-        file = request.files["resume"]
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
+        if resume:
+            filename = secure_filename(resume.filename)
+            path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+            resume.save(path)
             resume_text = filename
 
-        score = ai_score_resume(resume_text)
-        qualified = "Qualified" if score >= 70 else "Not Qualified"
+        ai_score = score_resume(resume_text + q1 + q2 + q3)
+        result = "Qualified" if ai_score >= 60 else "Not Qualified"
 
-        exists = os.path.isfile(DATA_FILE)
         with open(DATA_FILE, "a", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
-            if not exists:
-                writer.writerow([
-                    "Name","Phone","Email","Job","Country","State","District","Area",
-                    "Score","Result","Company"
-                ])
             writer.writerow([
-                name, phone, email, job, country, state, district, area,
-                score, qualified, COMPANY_NAME
+                name,phone,email,job_role,experience,
+                country,state,district,area,
+                q1,q2,q3,
+                ai_score,result
             ])
 
-        send_confirmation_email(name, email, job)
-        result = qualified
+        send_email(email, name, job_role)
 
-    return render_template_string(TEMPLATE, result=result)
+    return render_template_string(TEMPLATE,
+        it_questions=IT_QUESTIONS,
+        non_it_questions=NON_IT_QUESTIONS,
+        result=result
+    )
 
 @app.route("/admin")
 def admin():
     rows = []
-    if os.path.isfile(DATA_FILE):
-        with open(DATA_FILE, newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            rows = list(reader)
+    with open(DATA_FILE, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+    return render_template_string(ADMIN_TEMPLATE, rows=rows)
 
-    avg_score = (
-        sum(int(r["Score"]) for r in rows) // len(rows)
-        if rows else 0
-    )
-    return render_template_string(ADMIN_TEMPLATE, rows=rows, avg=avg_score)
-
-# ======================
+# ------------------------
 # TEMPLATES
-# ======================
+# ------------------------
 TEMPLATE = """
 <!doctype html>
 <html>
@@ -151,27 +145,30 @@ TEMPLATE = """
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <script>
 function loadQuestions() {
-    let job = document.getElementById("job").value;
-    let it = {{ it|tojson }};
-    let nonit = {{ nonit|tojson }};
-    let qs = job.includes("Developer") ? it : nonit;
+    const role = document.getElementById("job_role").value;
+    const it = {{ it_questions | tojson }};
+    const nonit = {{ non_it_questions | tojson }};
+    let qs = role.includes("Developer") ? it : nonit;
     for (let i=0;i<3;i++){
         document.getElementById("ql"+(i+1)).innerText = qs[i];
     }
 }
 </script>
 </head>
-<body class="bg-light">
-<div class="container mt-5">
+<body class="container py-4">
 <h3>Velvoro Job AI</h3>
 <form method="post" enctype="multipart/form-data">
 <input name="name" class="form-control mb-2" placeholder="Full Name" required>
 <input name="phone" class="form-control mb-2" placeholder="Phone" required>
 <input name="email" class="form-control mb-2" placeholder="Email" required>
 
-<select name="job" id="job" class="form-control mb-2" onchange="loadQuestions()">
+<select name="job_role" id="job_role" class="form-control mb-2" onchange="loadQuestions()">
 <option>Backend Developer</option>
 <option>HR Executive</option>
+</select>
+
+<select name="experience" class="form-control mb-2">
+{% for i in range(31) %}<option>{{i}}</option>{% endfor %}
 </select>
 
 <input name="country" class="form-control mb-2" placeholder="Country">
@@ -186,15 +183,14 @@ function loadQuestions() {
 <label id="ql3"></label>
 <textarea name="q3" class="form-control mb-2"></textarea>
 
-<input type="file" name="resume" class="form-control mb-2" required>
+<input type="file" name="resume" class="form-control mb-3">
+
 <button class="btn btn-primary">Submit</button>
 </form>
 
 {% if result %}
-<div class="alert alert-info mt-3">Result: {{ result }}</div>
+<div class="alert alert-info mt-3">Result: {{result}}</div>
 {% endif %}
-</div>
-<script>loadQuestions();</script>
 </body>
 </html>
 """
@@ -206,26 +202,25 @@ ADMIN_TEMPLATE = """
 <title>Admin</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
-<body>
-<div class="container mt-5">
+<body class="container py-4">
 <h3>Admin Dashboard</h3>
-<p>Avg AI Score: {{ avg }}</p>
 <table class="table table-bordered">
 <tr>
 <th>Name</th><th>Email</th><th>Job</th><th>Score</th><th>Result</th>
 </tr>
 {% for r in rows %}
 <tr>
-<td>{{r.Name}}</td><td>{{r.Email}}</td><td>{{r.Job}}</td>
-<td>{{r.Score}}</td><td>{{r.Result}}</td>
+<td>{{r.name}}</td>
+<td>{{r.email}}</td>
+<td>{{r.job_role}}</td>
+<td>{{r.ai_score}}</td>
+<td>{{r.result}}</td>
 </tr>
 {% endfor %}
 </table>
-</div>
 </body>
 </html>
 """
 
-# ======================
 if __name__ == "__main__":
     app.run(debug=True)
