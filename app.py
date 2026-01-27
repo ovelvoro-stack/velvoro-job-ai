@@ -1,238 +1,183 @@
 from flask import Flask, request, render_template_string, redirect, url_for
-import csv, os, uuid
-from datetime import datetime
+import csv, os
 
 app = Flask(__name__)
-UPLOAD_FOLDER = "uploads"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-CSV_FILE = "applications.csv"
+DATA_FILE = "applications.csv"
 
-# =========================
-# JOB ROLES & QUESTIONS
-# =========================
+# ------------------ JOB ROLES ------------------
 IT_ROLES = [
-    "Software Engineer", "Backend Developer", "Frontend Developer",
-    "Full Stack Developer", "Data Analyst", "Data Scientist",
-    "DevOps Engineer", "QA / Tester", "Mobile App Developer"
+    "Backend Developer", "Frontend Developer",
+    "Full Stack Developer", "Software Engineer"
 ]
 
 NON_IT_ROLES = [
-    "HR Executive", "Recruiter", "Marketing Executive",
-    "Sales Executive", "Digital Marketing",
-    "Content Writer", "Accountant", "Operations Executive"
+    "HR Executive", "Recruiter",
+    "Sales Executive", "Marketing Executive"
 ]
 
+# ------------------ QUESTIONS ------------------
 IT_QUESTIONS = [
-    "Explain a project you have built using your primary tech stack.",
-    "How do you debug a production issue?",
-    "How do you ensure code quality and scalability?"
+    "Explain your previous technical experience relevant to this role.",
+    "Which programming languages and frameworks are you strongest in?",
+    "How do you debug and fix production issues?"
 ]
 
 NON_IT_QUESTIONS = [
-    "Explain your experience relevant to this role.",
-    "How do you handle targets or deadlines?",
-    "How do you communicate with teams or clients?"
+    "Explain your previous work experience related to this role.",
+    "How do you handle pressure and deadlines?",
+    "Why do you think you are suitable for this position?"
 ]
 
-# =========================
-# LOCATION DATA
-# =========================
-COUNTRIES = ["India", "USA"]  # ISO expandable
-
-STATES = {
-    "India": [
-        "Andhra Pradesh","Telangana","Karnataka","Tamil Nadu",
-        "Maharashtra","Kerala","Delhi","Gujarat","Rajasthan"
-    ],
-    "USA": [
-        "California","Texas","New York","Florida","Illinois"
-    ]
-}
-
-DISTRICTS = {
-    "Telangana": ["Hyderabad","Rangareddy","Medchal","Nalgonda"],
-    "Andhra Pradesh": ["Visakhapatnam","Vijayawada","Guntur"],
-    "Karnataka": ["Bengaluru Urban","Mysuru","Mangaluru"],
-    "California": ["Los Angeles County","San Diego County"],
-    "Texas": ["Harris County","Dallas County"]
-}
-
-# =========================
-# CSV INIT
-# =========================
-if not os.path.exists(CSV_FILE):
-    with open(CSV_FILE, "w", newline="", encoding="utf-8") as f:
+# ------------------ CSV INIT ------------------
+if not os.path.exists(DATA_FILE):
+    with open(DATA_FILE, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow([
-            "Name","Phone","Email","Job Role","Experience",
+            "Name","Phone","Email","Role","Experience",
             "Country","State","District","Area",
-            "AI Score","Result","Date"
+            "Q1","Q2","Q3","Qualification"
         ])
 
-# =========================
-# AI SCORING (SAFE FALLBACK)
-# =========================
-def ai_score(resume_text):
-    try:
-        import google.generativeai as genai
-        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-        model = genai.GenerativeModel("models/gemini-1.5-flash")
-        prompt = f"Score this resume out of 100:\n{resume_text}"
-        response = model.generate_content(prompt)
-        score = int("".join(filter(str.isdigit, response.text))[:2])
-        return score
-    except:
-        return min(90, max(50, len(resume_text)//30))
-
-# =========================
-# HOME / APPLY
-# =========================
+# ------------------ MAIN FORM ------------------
 @app.route("/", methods=["GET","POST"])
 def apply():
-    result = None
+    qualification = None
+
     if request.method == "POST":
-        name = request.form["name"]
-        phone = request.form["phone"]
-        email = request.form["email"]
-        role = request.form["job_role"]
-        exp = request.form["experience"]
-        country = request.form["country"]
-        state = request.form.get("state","")
-        district = request.form.get("district","")
-        area = request.form["area"]
+        form = request.form
+        answers = [form.get("q1",""), form.get("q2",""), form.get("q3","")]
 
-        file = request.files["resume"]
-        path = os.path.join(UPLOAD_FOLDER, str(uuid.uuid4())+"_"+file.filename)
-        file.save(path)
+        # Simple qualification logic
+        qualification = "Qualified" if sum(len(a) for a in answers) >= 150 else "Not Qualified"
 
-        with open(path, "r", errors="ignore") as f:
-            resume_text = f.read()
-
-        score = ai_score(resume_text)
-        result = "Qualified" if score >= 60 else "Not Qualified"
-
-        with open(CSV_FILE, "a", newline="", encoding="utf-8") as f:
+        with open(DATA_FILE, "a", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerow([
-                name,phone,email,role,exp,
-                country,state,district,area,
-                score,result,datetime.now().strftime("%Y-%m-%d %H:%M")
+                form["name"], form["phone"], form["email"], form["role"],
+                form["experience"], form["country"], form["state"],
+                form["district"], form["area"],
+                answers[0], answers[1], answers[2], qualification
             ])
 
     return render_template_string(TEMPLATE,
-        it_roles=IT_ROLES, non_it_roles=NON_IT_ROLES,
-        it_q=IT_QUESTIONS, non_it_q=NON_IT_QUESTIONS,
-        countries=COUNTRIES, states=STATES, districts=DISTRICTS,
-        result=result
+        it_roles=IT_ROLES,
+        non_it_roles=NON_IT_ROLES,
+        it_questions=IT_QUESTIONS,
+        non_it_questions=NON_IT_QUESTIONS,
+        qualification=qualification
     )
 
-# =========================
-# ADMIN
-# =========================
+# ------------------ ADMIN ------------------
 @app.route("/admin")
 def admin():
-    with open(CSV_FILE, encoding="utf-8") as f:
-        data = list(csv.reader(f))[1:]
-    return render_template_string(ADMIN, data=data)
+    rows = []
+    with open(DATA_FILE, newline="", encoding="utf-8") as f:
+        reader = csv.reader(f)
+        next(reader)
+        rows = list(reader)
 
-# =========================
-# HTML TEMPLATE
-# =========================
+    return render_template_string(ADMIN_TEMPLATE, rows=rows)
+
+# ------------------ TEMPLATES ------------------
 TEMPLATE = """
 <!doctype html>
 <html>
 <head>
 <title>Velvoro Job AI</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<script>
-function loadQuestions(){
- let role=document.getElementById("job_role").value;
- document.getElementById("it_q").style.display={{'IT' if False else 'none'}};
- document.getElementById("nonit_q").style.display='none';
- if ({{ it_roles|tojson }}.includes(role)){
-   document.getElementById("it_q").style.display='block';
- }
- if ({{ non_it_roles|tojson }}.includes(role)){
-   document.getElementById("nonit_q").style.display='block';
- }
-}
-function loadStates(){
- let c=document.getElementById("country").value;
- let s=document.getElementById("state");
- s.innerHTML="";
- ({{ states|tojson }}[c]||[]).forEach(x=>s.innerHTML+=`<option>${x}</option>`);
- loadDistricts();
-}
-function loadDistricts(){
- let s=document.getElementById("state").value;
- let d=document.getElementById("district");
- d.innerHTML="";
- ({{ districts|tojson }}[s]||[]).forEach(x=>d.innerHTML+=`<option>${x}</option>`);
-}
-</script>
 </head>
 <body class="bg-light">
-<div class="container mt-4">
-<h2 class="text-center mb-3">Velvoro Job AI</h2>
-<form method="post" enctype="multipart/form-data" class="card p-4">
+<div class="container mt-5">
+<div class="card p-4 shadow">
+<h3 class="text-center mb-4">Velvoro Job AI</h3>
+
+<form method="post">
 <input class="form-control mb-2" name="name" placeholder="Full Name" required>
 <input class="form-control mb-2" name="phone" placeholder="Phone Number" required>
 <input class="form-control mb-2" name="email" placeholder="Email" required>
 
-<select class="form-select mb-2" id="job_role" name="job_role" onchange="loadQuestions()" required>
+<select class="form-control mb-2" name="role" id="role" required onchange="loadQuestions()">
 <option value="">Select Job Role</option>
-{% for r in it_roles %}<option>{{r}}</option>{% endfor %}
-{% for r in non_it_roles %}<option>{{r}}</option>{% endfor %}
+{% for r in it_roles %}
+<option value="{{r}}">{{r}}</option>
+{% endfor %}
+{% for r in non_it_roles %}
+<option value="{{r}}">{{r}}</option>
+{% endfor %}
 </select>
 
-<div id="it_q" style="display:none">
-{% for q in it_q %}<label>{{q}}</label><textarea class="form-control mb-2"></textarea>{% endfor %}
-</div>
-
-<div id="nonit_q" style="display:none">
-{% for q in non_it_q %}<label>{{q}}</label><textarea class="form-control mb-2"></textarea>{% endfor %}
-</div>
-
-<select class="form-select mb-2" name="experience">
-{% for i in range(0,31) %}<option>{{i}}</option>{% endfor %}
+<select class="form-control mb-2" name="experience">
+{% for i in range(0,31) %}
+<option value="{{i}}">{{i}} Years</option>
+{% endfor %}
 </select>
 
-<select class="form-select mb-2" id="country" name="country" onchange="loadStates()" required>
-<option value="">Country</option>
-{% for c in countries %}<option>{{c}}</option>{% endfor %}
-</select>
+<input class="form-control mb-2" name="country" placeholder="Country" required>
+<input class="form-control mb-2" name="state" placeholder="State" required>
+<input class="form-control mb-2" name="district" placeholder="District" required>
+<input class="form-control mb-2" name="area" placeholder="Area / Locality" required>
 
-<select class="form-select mb-2" id="state" name="state" onchange="loadDistricts()"></select>
-<select class="form-select mb-2" id="district" name="district"></select>
+<div id="questions"></div>
 
-<input class="form-control mb-2" name="area" placeholder="Area / Locality">
-<input class="form-control mb-3" type="file" name="resume" required>
-
-<button class="btn btn-primary w-100">Submit Application</button>
+<button class="btn btn-primary w-100 mt-3">Submit Application</button>
 </form>
 
-{% if result %}
-<div class="alert alert-info mt-3">Result: <b>{{result}}</b></div>
+{% if qualification %}
+<div class="alert alert-info mt-3 text-center">
+Result: <b>{{qualification}}</b>
+</div>
 {% endif %}
 </div>
+</div>
+
+<script>
+const itRoles = {{ it_roles|tojson }};
+const itQs = {{ it_questions|tojson }};
+const nonItQs = {{ non_it_questions|tojson }};
+
+function loadQuestions(){
+    let role = document.getElementById("role").value;
+    let qDiv = document.getElementById("questions");
+    qDiv.innerHTML = "";
+
+    let qs = itRoles.includes(role) ? itQs : nonItQs;
+
+    qs.forEach((q,i)=>{
+        qDiv.innerHTML += `
+        <label class="mt-3"><b>${q}</b></label>
+        <textarea class="form-control" name="q${i+1}" required></textarea>
+        `;
+    });
+}
+</script>
 </body>
 </html>
 """
 
-ADMIN = """
+ADMIN_TEMPLATE = """
 <!doctype html>
-<html><head>
+<html>
+<head>
+<title>Admin</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-</head><body class="container mt-4">
+</head>
+<body class="container mt-5">
 <h3>Admin Dashboard</h3>
 <table class="table table-bordered">
-<tr><th>Name</th><th>Phone</th><th>Email</th><th>Job</th><th>Exp</th><th>Score</th><th>Result</th></tr>
-{% for r in data %}
-<tr>{% for c in r[:7] %}<td>{{c}}</td>{% endfor %}</tr>
+<tr>
+<th>Name</th><th>Phone</th><th>Email</th><th>Role</th>
+<th>Exp</th><th>Location</th><th>Result</th>
+</tr>
+{% for r in rows %}
+<tr>
+<td>{{r[0]}}</td><td>{{r[1]}}</td><td>{{r[2]}}</td><td>{{r[3]}}</td>
+<td>{{r[4]}}</td><td>{{r[5]}}, {{r[6]}}, {{r[7]}}</td><td>{{r[11]}}</td>
+</tr>
 {% endfor %}
 </table>
-</body></html>
+</body>
+</html>
 """
 
 if __name__ == "__main__":
