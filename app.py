@@ -2,7 +2,7 @@ import os
 import csv
 import smtplib
 from email.mime.text import MIMEText
-from flask import Flask, request, render_template_string
+from flask import Flask, request, render_template_string, abort
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
@@ -15,61 +15,46 @@ DATA_FILE = "applications.csv"
 # JOB ROLES (FULL A–Z)
 # ------------------------
 IT_JOBS = [
-    # A–C
     "AI Engineer","Android Developer","Application Support Engineer",
     "Backend Developer","Blockchain Developer","Business Analyst",
     "Cloud Architect","Cloud Engineer","Computer Operator",
-    # D–F
     "Data Analyst","Data Engineer","Data Scientist","Database Administrator",
     "DevOps Engineer","Desktop Support Engineer",
     "Firmware Engineer","Frontend Developer","Full Stack Developer",
-    # G–I
     "Game Developer","GIS Engineer",
     "IT Administrator","IT Manager","IT Support Executive","IT Technician",
-    # J–M
     "Java Developer","Junior Software Engineer",
     "Machine Learning Engineer","Mainframe Developer","Mobile App Developer",
-    # N–R
     "Network Administrator","Network Engineer",
     "PHP Developer","Platform Engineer","Python Developer",
-    "QA Engineer","QA Tester",
-    "Release Manager",
-    # S–Z
+    "QA Engineer","QA Tester","Release Manager",
     "SAP Consultant","Security Analyst","Site Reliability Engineer",
     "Software Architect","Software Engineer","Solutions Architect",
     "System Administrator","System Engineer",
     "Technical Lead","Technical Support Engineer",
-    "UI Developer","UX Designer",
-    "Web Developer"
+    "UI Developer","UX Designer","Web Developer"
 ]
 
 NON_IT_JOBS = [
-    # A–C
     "Accountant","Accounts Executive","Admin Assistant","Admin Manager",
     "Back Office Executive","Bank Clerk","Bank Officer",
     "Business Development Executive","Business Manager",
     "Call Center Executive","Cashier","Civil Supervisor",
     "Content Writer","Copywriter","Customer Relationship Executive",
     "Customer Support Executive",
-    # D–H
     "Delivery Executive","Digital Marketing Executive","Documentation Executive",
-    "Event Coordinator",
-    "Field Executive","Finance Executive","Front Office Executive",
-    "Graphic Designer",
+    "Event Coordinator","Field Executive","Finance Executive",
+    "Front Office Executive","Graphic Designer",
     "HR Executive","HR Manager","HR Recruiter",
-    # I–M
     "Insurance Advisor","Inventory Executive",
     "Legal Executive","Logistics Coordinator",
     "Marketing Executive","Marketing Manager","Media Planner",
-    # O–R
     "Office Assistant","Office Boy","Operations Executive","Operations Manager",
     "Procurement Executive","Project Coordinator",
     "Receptionist","Relationship Manager","Retail Sales Executive",
-    # S–Z
     "Sales Executive","Sales Manager","SEO Executive","Social Media Manager",
     "Store Executive","Store Incharge","Store Manager",
-    "Telecaller","Training Coordinator",
-    "Warehouse Executive"
+    "Telecaller","Training Coordinator","Warehouse Executive"
 ]
 
 # ------------------------
@@ -107,17 +92,18 @@ def score_resume(text):
     return min(100, 60 + len(text) % 40)
 
 # ------------------------
-# EMAIL (SAFE)
+# EMAIL (CORPORATE SENDER WITH APPLICANT NAME)
 # ------------------------
-def send_email(to_email, name, role):
-    smtp_user = os.getenv("SMTP_USER")
+def send_email(to_email, applicant_name, role):
+    smtp_user = os.getenv("SMTP_USER")  # corporate email
     smtp_pass = os.getenv("SMTP_PASS")
     if not smtp_user or not smtp_pass:
         return
     msg = MIMEText(
-        f"""Dear {name},
+        f"""Dear {applicant_name},
 
 Thank you for applying for the {role} position at Velvoro Software Solution.
+
 Our team will review your application.
 
 Regards,
@@ -125,7 +111,7 @@ Velvoro HR Team
 """
     )
     msg["Subject"] = "Application Received – Velvoro"
-    msg["From"] = smtp_user
+    msg["From"] = f"{applicant_name} <{smtp_user}>"
     msg["To"] = to_email
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
@@ -139,15 +125,23 @@ Velvoro HR Team
 def index():
     result = None
     if request.method == "POST":
-        name = request.form.get("name")
-        phone = request.form.get("phone")
-        email = request.form.get("email")
-        job_role = request.form.get("job_role")
-        experience = request.form.get("experience")
-        country = request.form.get("country")
-        state = request.form.get("state")
-        district = request.form.get("district")
-        area = request.form.get("area")
+        name = request.form.get("name","").strip()
+        phone = request.form.get("phone","").strip()
+        email = request.form.get("email","").strip()
+        job_role = request.form.get("job_role","").strip()
+        experience_raw = request.form.get("experience","0").strip()
+        country = request.form.get("country","").strip()
+        state = request.form.get("state","").strip()
+        district = request.form.get("district","").strip()
+        area = request.form.get("area","").strip()
+
+        # CHANGE #1: Experience validation (0–30)
+        try:
+            experience = int(experience_raw)
+        except ValueError:
+            abort(400)
+        if experience < 0 or experience > 30:
+            abort(400)
 
         q1 = request.form.get("q1","")
         q2 = request.form.get("q2","")
@@ -155,7 +149,7 @@ def index():
 
         resume = request.files.get("resume")
         resume_text = ""
-        if resume:
+        if resume and resume.filename:
             filename = secure_filename(resume.filename)
             path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
             resume.save(path)
@@ -173,6 +167,7 @@ def index():
                 ai_score,result
             ])
 
+        # CHANGE #2: Corporate sender with applicant name
         send_email(email, name, job_role)
 
     return render_template_string(
@@ -234,8 +229,8 @@ function loadQuestions() {
 </optgroup>
 </select>
 
-<select name="experience" class="form-control mb-2">
-{% for i in range(31) %}<option>{{i}}</option>{% endfor %}
+<select name="experience" class="form-control mb-2" required>
+{% for i in range(31) %}<option value="{{i}}">{{i}}</option>{% endfor %}
 </select>
 
 <input name="country" class="form-control mb-2" placeholder="Country">
