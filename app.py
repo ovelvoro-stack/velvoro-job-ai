@@ -1,8 +1,8 @@
-# ==============================
-# Velvoro Job AI – FINAL app.py
+# ============================================================
+# Velvoro Job AI — FINAL app.py
 # ONLY requested changes implemented
 # UI / flow / CSV / email / admin / experience logic unchanged
-# ==============================
+# ============================================================
 
 import os
 import csv
@@ -17,109 +17,110 @@ os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
 DATA_FILE = "applications.csv"
 
-# =========================================================
-# IT JOB ROLES – A–Z (LOW → HIGH CADRE, PRACTICAL, INDUSTRY)
-# =========================================================
+# ============================================================
+# IT JOB ROLES — A–Z FULL CADRE (LOW → HIGH, INDUSTRY-USED)
+# ============================================================
 IT_JOBS = [
-    # Fresher / Entry
-    "Computer Operator","IT Support Trainee","Junior Software Developer",
-    "Junior Web Developer","Junior QA Tester","Technical Support Executive",
+    # Fresher / Trainee
+    "Computer Operator","IT Support Trainee","Software Trainee","QA Trainee",
+    "Junior IT Support Engineer","Junior Software Developer","Junior Web Developer",
+    "Junior QA Tester","Junior Network Engineer",
 
-    # Mid
-    "Software Developer","Software Engineer","Backend Developer",
-    "Frontend Developer","Full Stack Developer","Web Developer",
-    "Mobile App Developer","Android Developer","iOS Developer",
-    "QA Engineer","Automation Tester","Data Analyst",
-    "System Engineer","Network Engineer","Cloud Engineer",
-    "DevOps Engineer","Security Engineer","Database Administrator",
+    # Junior / Mid
+    "Software Developer","Software Engineer","Backend Developer","Frontend Developer",
+    "Full Stack Developer","Web Developer","Mobile App Developer",
+    "Android Developer","iOS Developer","QA Engineer","Automation Engineer",
+    "System Engineer","Network Engineer","Cloud Engineer","DevOps Engineer",
+    "Security Engineer","Database Administrator","Data Analyst","Business Analyst",
 
     # Senior
-    "Senior Software Engineer","Senior Backend Developer",
-    "Senior Frontend Developer","Senior Full Stack Developer",
-    "Senior QA Engineer","Senior Data Analyst","Senior DevOps Engineer",
-    "Senior Cloud Engineer","Senior Security Engineer",
+    "Senior Software Engineer","Senior Backend Developer","Senior Frontend Developer",
+    "Senior Full Stack Developer","Senior QA Engineer","Senior DevOps Engineer",
+    "Senior Cloud Engineer","Senior Security Engineer","Senior Data Analyst",
 
     # Lead
-    "Technical Lead","Team Lead – Software","QA Lead",
-    "DevOps Lead","Data Lead","Engineering Lead",
+    "Technical Lead","Team Lead – Software","QA Lead","DevOps Lead",
+    "Cloud Lead","Data Lead","Engineering Lead",
 
     # Architect
     "Solution Architect","Technical Architect","Cloud Architect",
-    "Data Architect","Enterprise Architect",
+    "Data Architect","Enterprise Architect","Security Architect",
 
     # Manager
     "Engineering Manager","IT Manager","Delivery Manager",
-    "Program Manager","Project Manager",
+    "Program Manager","Project Manager","Infrastructure Manager",
 
     # Director / CXO
-    "Director of Engineering","Head of IT","VP Engineering","CTO"
+    "Director of Engineering","Head of IT","VP Engineering",
+    "Chief Technology Officer","Chief Information Officer"
 ]
 
-# =========================================================
-# NON-IT JOB ROLES – A–Z (LOW → HIGH CADRE, PRACTICAL)
-# =========================================================
+# ============================================================
+# NON-IT JOB ROLES — A–Z FULL CADRE (LOW → HIGH)
+# ============================================================
 NON_IT_JOBS = [
     # Entry
     "Office Assistant","Back Office Executive","Customer Support Executive",
     "Telecaller","Junior Accountant","Field Executive","Operations Assistant",
+    "Admin Assistant","Store Assistant",
 
     # Executive
     "Sales Executive","Marketing Executive","HR Executive",
     "Recruitment Executive","Accounts Executive",
     "Digital Marketing Executive","Content Writer",
     "Relationship Executive","Business Development Executive",
+    "Customer Relationship Executive",
 
     # Manager
     "Sales Manager","Marketing Manager","HR Manager",
     "Accounts Manager","Operations Manager",
     "Customer Support Manager","Regional Sales Manager",
-    "Branch Manager",
+    "Branch Manager","Area Sales Manager",
 
     # Senior Manager
     "Senior Sales Manager","Senior HR Manager",
     "Senior Operations Manager","Finance Manager",
 
-    # Head / VP
+    # Head / VP / CXO
     "Head of Sales","Head of Marketing","Head of HR",
     "Head of Operations","Finance Controller",
     "Vice President – Sales","Vice President – Operations",
-    "Chief Operating Officer"
+    "Chief Operating Officer","Chief Financial Officer"
 ]
 
-# =========================================================
-# CADRE-WISE QUESTIONS (NO COMMON QUESTIONS)
-# =========================================================
-
+# ============================================================
+# CADRE-WISE QUESTIONS (STRICTLY DIFFERENT)
+# ============================================================
 IT_QUESTIONS_BY_LEVEL = {
     "fresher": [
-        "Which programming languages or tools have you learned so far?",
-        "Explain a small project or assignment you worked on.",
-        "How do you approach learning new technologies?"
+        "What core IT or programming skills have you learned so far?",
+        "Explain a small project or lab work you have done.",
+        "How do you approach learning new technical concepts?"
     ],
     "mid": [
-        "Describe a real production issue you handled and how you solved it.",
-        "Which frameworks or tools do you regularly use in your work?",
-        "How do you ensure code quality and performance?"
+        "Describe a real project you worked on and your contribution.",
+        "Which tools, frameworks, or technologies do you use daily?",
+        "How do you debug and resolve technical issues?"
     ],
     "senior": [
-        "Explain a complex system or module you designed or improved.",
-        "How do you handle scalability and performance challenges?",
-        "How do you mentor junior engineers?"
+        "Explain a complex system or feature you designed or improved.",
+        "How do you ensure scalability, security, and performance?",
+        "How do you mentor or review work of junior engineers?"
     ],
     "lead": [
-        "How do you handle technical decision-making for your team?",
+        "How do you make technical decisions for your team?",
         "Describe a challenge you faced while leading engineers.",
-        "How do you ensure on-time delivery with quality?"
+        "How do you balance delivery speed with code quality?"
     ],
     "architect": [
-        "Explain how you design scalable and fault-tolerant systems.",
-        "How do you choose technologies for long-term projects?",
+        "How do you design scalable and fault-tolerant architectures?",
+        "How do you choose technologies for long-term systems?",
         "Describe an architecture decision you defended successfully."
     ],
     "manager": [
-        "How do you balance technical goals with business priorities?",
-        "How do you manage and grow engineering teams?",
-        "How do you handle delivery risks and stakeholder expectations?"
+        "How do you align engineering goals with business objectives?",
+        "How do you manage team performance and delivery risks?",
+        "How do you communicate with stakeholders and leadership?"
     ]
 }
 
@@ -146,20 +147,20 @@ NON_IT_QUESTIONS_BY_LEVEL = {
     ]
 }
 
-# =========================================================
-# LEVEL DETECTION (FALLBACK SAFE)
-# =========================================================
+# ============================================================
+# LEVEL DETECTION (SAFE FALLBACK)
+# ============================================================
 def detect_it_level(role):
     r = role.lower()
-    if any(x in r for x in ["junior","trainee","support","operator"]):
+    if any(x in r for x in ["trainee","junior","support","operator"]):
         return "fresher"
-    if any(x in r for x in ["senior"]):
+    if "senior" in r:
         return "senior"
-    if any(x in r for x in ["lead"]):
+    if "lead" in r:
         return "lead"
-    if any(x in r for x in ["architect"]):
+    if "architect" in r:
         return "architect"
-    if any(x in r for x in ["manager","head","director","cto","vp"]):
+    if any(x in r for x in ["manager","head","director","cto","cio","vp"]):
         return "manager"
     return "mid"
 
@@ -167,15 +168,15 @@ def detect_nonit_level(role):
     r = role.lower()
     if any(x in r for x in ["assistant","junior","executive","telecaller"]):
         return "entry"
-    if any(x in r for x in ["manager"]):
+    if "manager" in r:
         return "manager"
     if any(x in r for x in ["head","vp","chief"]):
         return "head"
     return "executive"
 
-# =========================================================
+# ============================================================
 # CSV INIT (UNCHANGED)
-# =========================================================
+# ============================================================
 if not os.path.exists(DATA_FILE):
     with open(DATA_FILE, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
@@ -185,9 +186,9 @@ if not os.path.exists(DATA_FILE):
             "q1","q2","q3"
         ])
 
-# =========================================================
+# ============================================================
 # EMAIL (UNCHANGED)
-# =========================================================
+# ============================================================
 def send_email(to_email, name, role):
     smtp_user = os.getenv("SMTP_USER")
     smtp_pass = os.getenv("SMTP_PASS")
@@ -209,9 +210,9 @@ Velvoro HR Team
         server.login(smtp_user, smtp_pass)
         server.send_message(msg)
 
-# =========================================================
-# ROUTES (UNCHANGED FLOW)
-# =========================================================
+# ============================================================
+# ROUTES (FLOW UNCHANGED)
+# ============================================================
 @app.route("/", methods=["GET","POST"])
 def index():
     questions = []
@@ -256,9 +257,9 @@ def admin():
         rows = list(csv.DictReader(f))
     return render_template_string(ADMIN_TEMPLATE, rows=rows)
 
-# =========================================================
+# ============================================================
 # TEMPLATES (UNCHANGED STRUCTURE)
-# =========================================================
+# ============================================================
 TEMPLATE = """
 <!doctype html>
 <html>
