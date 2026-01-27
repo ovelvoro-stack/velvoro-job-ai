@@ -1,9 +1,8 @@
 import os
 import csv
-import uuid
 import smtplib
 from email.mime.text import MIMEText
-from flask import Flask, request, render_template_string, redirect, url_for
+from flask import Flask, request, render_template_string
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
@@ -13,8 +12,33 @@ os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 DATA_FILE = "applications.csv"
 
 # ------------------------
-# QUESTIONS CONFIG
+# JOB CONFIG
 # ------------------------
+IT_JOBS = [
+    "Backend Developer",
+    "Frontend Developer",
+    "Full Stack Developer",
+    "Software Engineer",
+    "DevOps Engineer",
+    "Data Analyst",
+    "Data Scientist",
+    "QA / Tester",
+    "Mobile App Developer",
+    "Cloud Engineer"
+]
+
+NON_IT_JOBS = [
+    "HR Executive",
+    "Recruiter",
+    "Sales Executive",
+    "Marketing Executive",
+    "Digital Marketing",
+    "Content Writer",
+    "Customer Support",
+    "Operations Executive",
+    "Accountant"
+]
+
 IT_QUESTIONS = [
     "Explain your backend architecture experience.",
     "Which programming languages and frameworks have you worked with?",
@@ -47,7 +71,6 @@ def score_resume(text):
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         return 50
-    # placeholder for real OpenAI call
     return min(100, 60 + len(text) % 40)
 
 # ------------------------
@@ -120,7 +143,10 @@ def index():
 
         send_email(email, name, job_role)
 
-    return render_template_string(TEMPLATE,
+    return render_template_string(
+        TEMPLATE,
+        it_jobs=IT_JOBS,
+        non_it_jobs=NON_IT_JOBS,
         it_questions=IT_QUESTIONS,
         non_it_questions=NON_IT_QUESTIONS,
         result=result
@@ -128,10 +154,8 @@ def index():
 
 @app.route("/admin")
 def admin():
-    rows = []
     with open(DATA_FILE, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        rows = list(reader)
+        rows = list(csv.DictReader(f))
     return render_template_string(ADMIN_TEMPLATE, rows=rows)
 
 # ------------------------
@@ -144,27 +168,35 @@ TEMPLATE = """
 <title>Velvoro Job AI</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <script>
-function loadQuestions() {
+const IT_JOBS = {{ it_jobs | tojson }};
+const IT_Q = {{ it_questions | tojson }};
+const NON_IT_Q = {{ non_it_questions | tojson }};
+
+function loadQuestions(){
     const role = document.getElementById("job_role").value;
-    const it = {{ it_questions | tojson }};
-    const nonit = {{ non_it_questions | tojson }};
-    let qs = role.includes("Developer") ? it : nonit;
-    for (let i=0;i<3;i++){
+    const qs = IT_JOBS.includes(role) ? IT_Q : NON_IT_Q;
+    for(let i=0;i<3;i++){
         document.getElementById("ql"+(i+1)).innerText = qs[i];
     }
 }
+window.onload = loadQuestions;
 </script>
 </head>
 <body class="container py-4">
 <h3>Velvoro Job AI</h3>
+
 <form method="post" enctype="multipart/form-data">
 <input name="name" class="form-control mb-2" placeholder="Full Name" required>
 <input name="phone" class="form-control mb-2" placeholder="Phone" required>
 <input name="email" class="form-control mb-2" placeholder="Email" required>
 
 <select name="job_role" id="job_role" class="form-control mb-2" onchange="loadQuestions()">
-<option>Backend Developer</option>
-<option>HR Executive</option>
+<optgroup label="IT Jobs">
+{% for j in it_jobs %}<option>{{j}}</option>{% endfor %}
+</optgroup>
+<optgroup label="Non-IT Jobs">
+{% for j in non_it_jobs %}<option>{{j}}</option>{% endfor %}
+</optgroup>
 </select>
 
 <select name="experience" class="form-control mb-2">
@@ -176,11 +208,11 @@ function loadQuestions() {
 <input name="district" class="form-control mb-2" placeholder="District">
 <input name="area" class="form-control mb-2" placeholder="Area">
 
-<label id="ql1"></label>
+<label id="ql1" class="fw-bold"></label>
 <textarea name="q1" class="form-control mb-2"></textarea>
-<label id="ql2"></label>
+<label id="ql2" class="fw-bold"></label>
 <textarea name="q2" class="form-control mb-2"></textarea>
-<label id="ql3"></label>
+<label id="ql3" class="fw-bold"></label>
 <textarea name="q3" class="form-control mb-2"></textarea>
 
 <input type="file" name="resume" class="form-control mb-3">
