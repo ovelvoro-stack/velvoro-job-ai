@@ -30,57 +30,129 @@ NON_IT_ROLES = [
 ]
 
 ROLE_QUESTIONS = {
-    "FRESHER_IT": [
-        "What basic IT or programming skills do you have?",
+    "IT Trainee": [
+        "What basic programming or IT skills do you have?",
         "Which technologies are you currently learning?",
-        "How do you approach learning new technical skills?"
+        "How do you approach learning a new technical skill?"
     ],
-    "JUNIOR_IT": [
+    "Junior Software Developer": [
         "Which programming languages have you worked with?",
-        "How do you debug issues in your code?",
-        "Describe a project you have worked on."
+        "How do you debug basic issues in your code?",
+        "Describe a small project you have worked on."
     ],
-    "SENIOR_IT": [
-        "How do you design scalable systems?",
+    "Software Engineer": [
+        "Which programming languages and frameworks do you use regularly?",
+        "How do you debug production-level issues?",
+        "Describe a challenging project you completed."
+    ],
+    "Senior Software Engineer": [
+        "How do you design scalable software systems?",
         "How do you mentor junior developers?",
         "How do you handle technical debt?"
     ],
-    "LEAD_IT": [
-        "How do you lead a technical team?",
+    "Tech Lead": [
+        "How do you lead a development team?",
         "How do you review and approve code?",
-        "How do you balance delivery and quality?"
+        "How do you balance delivery speed and quality?"
     ],
-    "ARCH_IT": [
-        "How do you design system architecture?",
-        "How do you choose technologies?",
+    "Solution Architect": [
+        "How do you design system architecture for scalability?",
+        "How do you choose technologies for a project?",
         "How do you handle performance bottlenecks?"
     ],
-    "MANAGER_IT": [
+    "Cloud Architect": [
+        "How do you design cloud-native architectures?",
+        "How do you manage cost optimization in cloud systems?",
+        "How do you ensure cloud security?"
+    ],
+    "Engineering Manager": [
         "How do you manage engineering teams?",
-        "How do you track project delivery?",
-        "How do you handle underperformance?"
+        "How do you track project progress?",
+        "How do you handle underperforming team members?"
     ],
-    "CXO_IT": [
-        "How do you define long-term tech vision?",
-        "How do you align tech with business?",
-        "How do you evaluate new technologies?"
+    "Director of Engineering": [
+        "How do you align engineering goals with business goals?",
+        "How do you scale engineering teams?",
+        "How do you manage multiple projects?"
     ],
-    "EXEC_NONIT": [
-        "Describe your day-to-day responsibilities.",
-        "How do you handle work pressure?",
-        "How do you communicate with stakeholders?"
+    "CTO": [
+        "How do you define long-term technology vision?",
+        "How do you align technology with business strategy?",
+        "How do you evaluate emerging technologies?"
     ],
-    "MANAGER_NONIT": [
-        "How do you manage your team?",
-        "How do you track performance?",
-        "How do you resolve conflicts?"
+    "Office Assistant": [
+        "What administrative tasks have you handled?",
+        "How do you manage daily office activities?",
+        "How do you prioritize your work?"
     ],
-    "HEAD_NONIT": [
-        "How do you define department strategy?",
-        "How do you measure success?",
-        "How do you scale operations?"
+    "Call Center Executive": [
+        "How do you handle customer calls?",
+        "How do you deal with difficult customers?",
+        "How do you meet call targets?"
+    ],
+    "Sales Executive": [
+        "How do you approach a new customer?",
+        "How do you handle rejection in sales?",
+        "Describe a sales target you achieved."
+    ],
+    "Area Sales Manager": [
+        "How do you manage a sales territory?",
+        "How do you achieve regional targets?",
+        "How do you motivate your sales team?"
+    ],
+    "Regional Sales Manager": [
+        "How do you plan regional sales strategy?",
+        "How do you track team performance?",
+        "How do you expand new markets?"
+    ],
+    "HR Executive": [
+        "How do you source candidates?",
+        "How do you coordinate interviews?",
+        "How do you communicate with candidates?"
+    ],
+    "HR Manager": [
+        "How do you design hiring strategies?",
+        "How do you handle employee conflicts?",
+        "How do you measure HR performance?"
+    ],
+    "Sales Head": [
+        "How do you define company-wide sales strategy?",
+        "How do you forecast revenue?",
+        "How do you manage large sales teams?"
+    ],
+    "HR Head": [
+        "How do you align HR policies with business goals?",
+        "How do you build company culture?",
+        "How do you manage workforce planning?"
+    ],
+    "Operations Head": [
+        "How do you optimize business operations?",
+        "How do you handle operational risks?",
+        "How do you improve efficiency at scale?"
+    ],
+    "Finance Head": [
+        "How do you manage company finances?",
+        "How do you control costs and budgeting?",
+        "How do you ensure financial compliance?"
+    ],
+    "Marketing Head": [
+        "How do you define marketing strategy?",
+        "How do you measure campaign ROI?",
+        "How do you build brand presence?"
     ]
 }
+
+DEFAULT_IT_QUESTIONS = [
+    "Explain your technical background.",
+    "Describe a technical challenge you solved.",
+    "How do you keep your skills updated?"
+]
+
+DEFAULT_NON_IT_QUESTIONS = [
+    "Describe your experience related to this role.",
+    "How do you handle work pressure?",
+    "Why should we hire you?"
+]
 
 if not os.path.exists(DATA_FILE):
     with open(DATA_FILE, "w", newline="", encoding="utf-8") as f:
@@ -140,8 +212,21 @@ def index():
         it_roles=IT_ROLES,
         non_it_roles=NON_IT_ROLES,
         role_questions=ROLE_QUESTIONS,
+        default_it=DEFAULT_IT_QUESTIONS,
+        default_non_it=DEFAULT_NON_IT_QUESTIONS,
         submitted=submitted
     )
+
+@app.route("/admin")
+def admin():
+    rows = []
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, newline="", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            headers = next(reader, [])
+            for r in reader:
+                rows.append(r)
+    return render_template_string(ADMIN_TEMPLATE, headers=headers, rows=rows)
 
 TEMPLATE = """
 <!doctype html>
@@ -153,22 +238,8 @@ TEMPLATE = """
 const IT_ROLES = {{ it_roles|tojson }};
 const NON_IT_ROLES = {{ non_it_roles|tojson }};
 const ROLE_Q = {{ role_questions|tojson }};
-
-function getQuestions(category, role){
-  if(category==="IT Jobs"){
-    if(role.includes("Trainee")) return ROLE_Q["FRESHER_IT"];
-    if(role.includes("Junior")) return ROLE_Q["JUNIOR_IT"];
-    if(role.includes("Senior")) return ROLE_Q["SENIOR_IT"];
-    if(role.includes("Lead")) return ROLE_Q["LEAD_IT"];
-    if(role.includes("Architect")) return ROLE_Q["ARCH_IT"];
-    if(role.includes("Manager")) return ROLE_Q["MANAGER_IT"];
-    return ROLE_Q["CXO_IT"];
-  } else {
-    if(role.includes("Executive")) return ROLE_Q["EXEC_NONIT"];
-    if(role.includes("Manager")) return ROLE_Q["MANAGER_NONIT"];
-    return ROLE_Q["HEAD_NONIT"];
-  }
-}
+const DEFAULT_IT = {{ default_it|tojson }};
+const DEFAULT_NONIT = {{ default_non_it|tojson }};
 
 function loadRoles(){
   const cat = document.getElementById("category").value;
@@ -183,10 +254,11 @@ function loadRoles(){
 }
 
 function loadQuestions(){
-  const cat = document.getElementById("category").value;
   const role = document.getElementById("role").value;
-  if(!role) return;
-  const qs = getQuestions(cat, role);
+  let qs = ROLE_Q[role];
+  if(!qs){
+    qs = document.getElementById("category").value==="IT Jobs" ? DEFAULT_IT : DEFAULT_NONIT;
+  }
   document.getElementById("ql1").innerText = qs[0];
   document.getElementById("ql2").innerText = qs[1];
   document.getElementById("ql3").innerText = qs[2];
@@ -236,6 +308,37 @@ function loadQuestions(){
 <input type="file" name="resume" class="form-control mb-3" required>
 <button class="btn btn-primary">Submit</button>
 </form>
+</body>
+</html>
+"""
+
+ADMIN_TEMPLATE = """
+<!doctype html>
+<html>
+<head>
+<title>Admin - Velvoro Job AI</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="container py-4">
+<h3>Applications</h3>
+<table class="table table-bordered table-sm">
+<thead>
+<tr>
+{% for h in headers %}
+<th>{{ h }}</th>
+{% endfor %}
+</tr>
+</thead>
+<tbody>
+{% for row in rows %}
+<tr>
+{% for col in row %}
+<td>{{ col }}</td>
+{% endfor %}
+</tr>
+{% endfor %}
+</tbody>
+</table>
 </body>
 </html>
 """
