@@ -2,7 +2,7 @@ import os
 import csv
 import smtplib
 from email.mime.text import MIMEText
-from flask import Flask, request, render_template_string
+from flask import Flask, request, render_template_string, redirect, url_for
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
@@ -11,70 +11,64 @@ os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
 DATA_FILE = "applications.csv"
 
+# =========================
+# EXPANDED IT ROLES (A–Z)
+# =========================
 IT_ROLES = [
-    "IT Trainee","Junior Software Developer","Software Engineer","Senior Software Engineer",
-    "Tech Lead","Solution Architect","Engineering Manager","Director of Engineering","CTO",
-    "DevOps Engineer","Senior DevOps Engineer","Cloud Architect","Data Analyst","Senior Data Analyst",
-    "Data Scientist","Senior Data Scientist","AI Engineer","ML Engineer","QA Engineer","Senior QA Engineer"
+    "AI Engineer","AI Research Scientist","Android Developer","Application Support Engineer",
+    "Associate Software Engineer","Automation Engineer","Backend Developer","BI Developer",
+    "Blockchain Developer","Business Intelligence Analyst","Cloud Administrator","Cloud Architect",
+    "Cloud Engineer","Computer Vision Engineer","Cyber Security Analyst","Data Analyst",
+    "Data Architect","Data Engineer","Data Scientist","Database Administrator","DevOps Engineer",
+    "Digital Transformation Lead","Embedded Systems Engineer","Engineering Manager",
+    "Enterprise Architect","Firmware Engineer","Frontend Developer","Full Stack Developer",
+    "Game Developer","Hardware Engineer","Head of Engineering","Information Security Manager",
+    "Infrastructure Engineer","IT Analyst","IT Consultant","IT Manager","IT Support Engineer",
+    "Java Developer","Junior Software Developer","Lead Software Engineer","Linux Administrator",
+    "Machine Learning Engineer","Mobile Application Developer","Network Administrator",
+    "Network Engineer","NLP Engineer","Platform Engineer","Principal Engineer",
+    "Product Engineer","QA Analyst","QA Automation Engineer","Release Manager",
+    "Research Engineer","Robotics Engineer","SAP Consultant","Scrum Master",
+    "Security Engineer","Senior Software Engineer","Site Reliability Engineer",
+    "Software Architect","Software Developer","Software Engineer","Solution Architect",
+    "System Administrator","Systems Engineer","Technical Architect","Technical Lead",
+    "Technical Program Manager","Technology Director","Test Engineer","UI Developer",
+    "UX Engineer","VP Engineering","Web Developer","Windows Administrator","CTO"
 ]
 
+# =========================
+# EXPANDED NON-IT ROLES (A–Z)
+# =========================
 NON_IT_ROLES = [
-    "Office Assistant","Sales Executive","Senior Sales Executive","Area Sales Manager",
-    "Regional Sales Manager","Sales Head","HR Executive","HR Manager","HR Head",
-    "Operations Executive","Operations Manager","Operations Head",
-    "Accountant","Senior Accountant","Finance Manager","Finance Head",
-    "Marketing Executive","Marketing Manager","Marketing Head"
+    "Account Executive","Account Manager","Administrative Assistant","Area Manager",
+    "Assistant Manager","Business Analyst","Business Development Executive",
+    "Business Development Manager","Call Center Executive","Chief Business Officer",
+    "Chief Financial Officer","Chief HR Officer","Chief Marketing Officer",
+    "Chief Operating Officer","Client Relationship Manager","Compliance Officer",
+    "Content Executive","Content Manager","Customer Care Executive",
+    "Customer Success Manager","Digital Marketing Executive",
+    "Digital Marketing Manager","Finance Analyst","Finance Executive",
+    "Finance Manager","General Manager","Growth Manager","HR Executive",
+    "HR Manager","HR Operations Manager","HR Recruiter","Inside Sales Executive",
+    "Key Account Manager","Legal Executive","Legal Manager","Logistics Executive",
+    "Logistics Manager","Marketing Analyst","Marketing Executive","Marketing Manager",
+    "Operations Executive","Operations Manager","Office Administrator",
+    "Office Assistant","Procurement Executive","Procurement Manager",
+    "Product Manager","Program Manager","Public Relations Executive",
+    "Public Relations Manager","Quality Manager","Regional Manager",
+    "Relationship Executive","Relationship Manager","Risk Analyst",
+    "Risk Manager","Sales Coordinator","Sales Executive","Sales Manager",
+    "Senior Manager","Supply Chain Executive","Supply Chain Manager",
+    "Talent Acquisition Executive","Talent Acquisition Manager",
+    "Training Executive","Training Manager","VP Operations","VP Sales"
 ]
 
-ROLE_QUESTIONS = {
-    "Sales Executive": [
-        "How do you approach a new customer for sales?",
-        "How do you handle rejection or lost sales?",
-        "Explain a target you achieved recently."
-    ],
-    "Sales Manager": [
-        "How do you manage and motivate your sales team?",
-        "How do you plan and track sales targets?",
-        "How do you handle underperforming team members?"
-    ],
-    "HR Executive": [
-        "How do you source candidates for open roles?",
-        "How do you coordinate interviews?",
-        "How do you ensure good communication with candidates?"
-    ],
-    "HR Manager": [
-        "How do you design hiring strategies?",
-        "How do you handle employee conflicts?",
-        "How do you measure HR performance?"
-    ],
-    "Software Engineer": [
-        "Which programming languages have you worked with?",
-        "How do you debug production issues?",
-        "Explain a challenging project you worked on."
-    ],
-    "Senior Software Engineer": [
-        "How do you design scalable systems?",
-        "How do you mentor junior developers?",
-        "How do you handle technical debt?"
-    ],
-    "Tech Lead": [
-        "How do you lead a development team?",
-        "How do you make architectural decisions?",
-        "How do you balance delivery and quality?"
-    ],
-    "CTO": [
-        "How do you define long-term technology vision?",
-        "How do you align tech strategy with business goals?",
-        "How do you evaluate new technologies?"
-    ]
-}
-
+ROLE_QUESTIONS = {}
 DEFAULT_IT_QUESTIONS = [
     "Explain your technical background.",
     "Describe a technical challenge you solved.",
     "How do you keep your skills updated?"
 ]
-
 DEFAULT_NON_IT_QUESTIONS = [
     "Describe your work experience related to this role.",
     "How do you handle pressure and deadlines?",
@@ -86,8 +80,7 @@ if not os.path.exists(DATA_FILE):
         writer = csv.writer(f)
         writer.writerow([
             "name","phone","email","category","role","experience",
-            "country","state","district","area",
-            "q1","q2","q3","resume"
+            "country","state","district","area","q1","q2","q3","resume"
         ])
 
 def send_email(to_email, name, role):
@@ -95,13 +88,7 @@ def send_email(to_email, name, role):
     smtp_pass = os.getenv("SMTP_PASS")
     if not smtp_user or not smtp_pass:
         return
-    msg = MIMEText(f"""Dear {name},
-
-Thank you for applying for the {role} position at Velvoro Software Solution.
-
-Regards,
-Velvoro HR Team
-""")
+    msg = MIMEText(f"Dear {name},\n\nThank you for applying for the {role} position.\n\nVelvoro HR Team")
     msg["Subject"] = "Application Received – Velvoro"
     msg["From"] = smtp_user
     msg["To"] = to_email
@@ -113,57 +100,34 @@ Velvoro HR Team
 def index():
     submitted = False
     if request.method == "POST":
-        name = request.form.get("name")
-        phone = request.form.get("phone")
-        email = request.form.get("email")
-        category = request.form.get("category")
-        role = request.form.get("role")
-        experience = request.form.get("experience")
-        country = request.form.get("country")
-        state = request.form.get("state")
-        district = request.form.get("district")
-        area = request.form.get("area")
-        q1 = request.form.get("q1")
-        q2 = request.form.get("q2")
-        q3 = request.form.get("q3")
-
-        resume_file = request.files.get("resume")
+        form = request.form
+        resume = request.files.get("resume")
         resume_name = ""
-        if resume_file:
-            resume_name = secure_filename(resume_file.filename)
-            resume_file.save(os.path.join(app.config["UPLOAD_FOLDER"], resume_name))
-
+        if resume:
+            resume_name = secure_filename(resume.filename)
+            resume.save(os.path.join(app.config["UPLOAD_FOLDER"], resume_name))
         with open(DATA_FILE, "a", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow([
-                name,phone,email,category,role,experience,
-                country,state,district,area,
-                q1,q2,q3,resume_name
+            csv.writer(f).writerow([
+                form.get("name"),form.get("phone"),form.get("email"),
+                form.get("category"),form.get("role"),form.get("experience"),
+                form.get("country"),form.get("state"),
+                form.get("district"),form.get("area"),
+                form.get("q1"),form.get("q2"),form.get("q3"),resume_name
             ])
-
-        send_email(email, name, role)
+        send_email(form.get("email"), form.get("name"), form.get("role"))
         submitted = True
 
-    return render_template_string(
-        TEMPLATE,
+    return render_template_string(TEMPLATE,
         it_roles=IT_ROLES,
         non_it_roles=NON_IT_ROLES,
-        role_questions=ROLE_QUESTIONS,
-        default_it=DEFAULT_IT_QUESTIONS,
-        default_non_it=DEFAULT_NON_IT_QUESTIONS,
         submitted=submitted
     )
 
 @app.route("/admin")
 def admin():
-    rows = []
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, newline="", encoding="utf-8") as f:
-            reader = csv.reader(f)
-            headers = next(reader)
-            for r in reader:
-                rows.append(r)
-    return render_template_string(ADMIN_TEMPLATE, headers=headers, rows=rows)
+    with open(DATA_FILE, newline="", encoding="utf-8") as f:
+        rows = list(csv.reader(f))
+    return render_template_string(ADMIN_TEMPLATE, rows=rows)
 
 TEMPLATE = """
 <!doctype html>
@@ -172,106 +136,55 @@ TEMPLATE = """
 <title>Velvoro Job AI</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <script>
-const IT_ROLES = {{ it_roles|tojson }};
-const NON_IT_ROLES = {{ non_it_roles|tojson }};
-const ROLE_Q = {{ role_questions|tojson }};
-const DEFAULT_IT = {{ default_it|tojson }};
-const DEFAULT_NONIT = {{ default_non_it|tojson }};
-
+const IT_ROLES={{it_roles|tojson}};
+const NON_IT_ROLES={{non_it_roles|tojson}};
 function loadRoles(){
-  const cat = document.getElementById("category").value;
-  const roleSel = document.getElementById("role");
-  roleSel.innerHTML = "";
-  let roles = cat === "IT Jobs" ? IT_ROLES : NON_IT_ROLES;
-  roles.forEach(r=>{
-    let o=document.createElement("option");
-    o.value=r;o.text=r;roleSel.add(o);
-  });
-  loadQuestions();
-}
-
-function loadQuestions(){
-  const role = document.getElementById("role").value;
-  let qs = ROLE_Q[role];
-  if(!qs){
-    qs = document.getElementById("category").value==="IT Jobs" ? DEFAULT_IT : DEFAULT_NONIT;
-  }
-  document.getElementById("ql1").innerText = qs[0];
-  document.getElementById("ql2").innerText = qs[1];
-  document.getElementById("ql3").innerText = qs[2];
+ let cat=document.getElementById("category").value;
+ let r=document.getElementById("role");
+ r.innerHTML="";
+ (cat==="IT Jobs"?IT_ROLES:NON_IT_ROLES).forEach(x=>{
+   let o=document.createElement("option");o.value=x;o.text=x;r.add(o);
+ });
 }
 </script>
 </head>
 <body class="container py-4">
 <h3>Velvoro Job AI</h3>
-
-{% if submitted %}
-<div class="alert alert-success">Your application has been submitted successfully.</div>
-{% endif %}
-
+{% if submitted %}<div class="alert alert-success">Application submitted successfully</div>{% endif %}
 <form method="post" enctype="multipart/form-data">
 <input name="name" class="form-control mb-2" placeholder="Full Name" required>
 <input name="phone" class="form-control mb-2" placeholder="Phone" required>
 <input name="email" class="form-control mb-2" placeholder="Email" required>
-
-<label>Apply Job Category</label>
 <select id="category" name="category" class="form-control mb-2" onchange="loadRoles()" required>
-<option value="">Select</option>
-<option>IT Jobs</option>
-<option>Non-IT Jobs</option>
+<option value="">Select</option><option>IT Jobs</option><option>Non-IT Jobs</option>
 </select>
-
-<select id="role" name="role" class="form-control mb-2" onchange="loadQuestions()" required></select>
-
-<label>Experience (0 – 30 Years)</label>
-<select name="experience" class="form-control mb-2">
-{% for i in range(31) %}<option>{{i}}</option>{% endfor %}
-</select>
-
+<select id="role" name="role" class="form-control mb-2" required></select>
+<select name="experience" class="form-control mb-2">{% for i in range(31) %}<option>{{i}}</option>{% endfor %}</select>
 <input name="country" class="form-control mb-2" placeholder="Country">
 <input name="state" class="form-control mb-2" placeholder="State">
 <input name="district" class="form-control mb-2" placeholder="District">
 <input name="area" class="form-control mb-2" placeholder="Area">
-
-<label id="ql1" class="fw-bold"></label>
 <textarea name="q1" class="form-control mb-2" required></textarea>
-<label id="ql2" class="fw-bold"></label>
 <textarea name="q2" class="form-control mb-2" required></textarea>
-<label id="ql3" class="fw-bold"></label>
 <textarea name="q3" class="form-control mb-2" required></textarea>
-
 <input type="file" name="resume" class="form-control mb-3" required>
 <button class="btn btn-primary">Submit</button>
 </form>
-</body>
-</html>
+</body></html>
 """
 
 ADMIN_TEMPLATE = """
 <!doctype html>
-<html>
-<head>
-<title>Admin - Velvoro Job AI</title>
+<html><head><title>Admin</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body class="container py-4">
+</head><body class="container py-4">
 <h3>Applications</h3>
-<table class="table table-bordered table-sm">
-<tr>
-{% for h in headers %}
-<th>{{h}}</th>
-{% endfor %}
-</tr>
+<table class="table table-bordered">
 {% for r in rows %}
-<tr>
-{% for c in r %}
-<td>{{c}}</td>
-{% endfor %}
-</tr>
+<tr>{% for c in r %}<td>{{c}}</td>{% endfor %}</tr>
 {% endfor %}
 </table>
-</body>
-</html>
+</body></html>
 """
 
 if __name__ == "__main__":
