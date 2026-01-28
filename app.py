@@ -12,7 +12,7 @@ os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 DATA_FILE = "applications.csv"
 
 # =========================
-# JOB ROLES (ALREADY A–Z)
+# JOB ROLES (A–Z)
 # =========================
 IT_ROLES = [
     "IT Trainee","Junior Software Developer","Software Engineer","Senior Software Engineer",
@@ -33,81 +33,81 @@ NON_IT_ROLES = [
 ]
 
 # =========================
-# ROLE → QUESTIONS (FIX)
+# ROLE-SPECIFIC QUESTIONS
 # =========================
 ROLE_QUESTIONS = {
     # IT – Fresher / Junior
     "IT Trainee": [
-        "What basic programming or IT skills do you have?",
+        "What basic IT or programming skills do you have?",
         "Which technologies are you currently learning?",
-        "How do you approach learning a new technical skill?"
+        "How do you approach learning new technical skills?"
     ],
     "Junior Software Developer": [
         "Which programming languages have you worked with?",
-        "How do you debug basic issues in your code?",
-        "Describe a small project you have worked on."
+        "How do you debug basic coding issues?",
+        "Describe a small project you worked on."
     ],
 
     # IT – Mid / Senior
     "Software Engineer": [
-        "Which programming languages and frameworks do you use regularly?",
-        "How do you debug production-level issues?",
+        "Which languages and frameworks do you use regularly?",
+        "How do you debug production issues?",
         "Describe a challenging project you completed."
     ],
     "Senior Software Engineer": [
-        "How do you design scalable software systems?",
+        "How do you design scalable systems?",
         "How do you mentor junior developers?",
-        "How do you handle technical debt?"
+        "How do you manage technical debt?"
     ],
 
     # IT – Lead / Architect
     "Tech Lead": [
-        "How do you lead a development team?",
-        "How do you review and approve code?",
-        "How do you balance delivery speed and quality?"
+        "How do you lead and review a development team?",
+        "How do you make architectural decisions?",
+        "How do you balance speed and code quality?"
     ],
     "Solution Architect": [
-        "How do you design system architecture for scalability?",
-        "How do you choose technologies for a project?",
+        "How do you design system architecture?",
+        "How do you select technologies for a project?",
         "How do you handle performance bottlenecks?"
     ],
     "Cloud Architect": [
         "How do you design cloud-native architectures?",
-        "How do you manage cost optimization in cloud systems?",
+        "How do you optimize cloud costs?",
         "How do you ensure cloud security?"
     ],
 
     # IT – Management
     "Engineering Manager": [
         "How do you manage engineering teams?",
-        "How do you track project progress?",
+        "How do you track delivery and performance?",
         "How do you handle underperforming team members?"
     ],
     "Director of Engineering": [
-        "How do you align engineering goals with business goals?",
-        "How do you scale engineering teams?",
+        "How do you align engineering with business goals?",
+        "How do you scale teams and processes?",
         "How do you manage multiple projects?"
     ],
     "CTO": [
         "How do you define long-term technology vision?",
-        "How do you align technology with business strategy?",
-        "How do you evaluate emerging technologies?"
+        "How do you align tech strategy with business?",
+        "How do you evaluate new technologies?"
     ],
 
     # Non-IT – Entry / Executive
     "Office Assistant": [
         "What administrative tasks have you handled?",
-        "How do you manage daily office activities?",
-        "How do you prioritize your work?"
+        "How do you organize daily office work?",
+        "How do you prioritize tasks?"
     ],
     "Call Center Executive": [
         "How do you handle customer calls?",
         "How do you deal with difficult customers?",
-        "How do you meet call targets?"
+        "How do you achieve call targets?"
     ],
     "Sales Executive": [
         "How do you approach a new customer?",
-        "How do you handle rejection in sales?",
+        "How do you handle sales rejection?",
         "Describe a sales target you achieved."
     ],
 
@@ -115,7 +115,7 @@ ROLE_QUESTIONS = {
     "Area Sales Manager": [
         "How do you manage a sales territory?",
         "How do you achieve regional targets?",
-        "How do you motivate your sales team?"
+        "How do you motivate your team?"
     ],
     "Regional Sales Manager": [
         "How do you plan regional sales strategy?",
@@ -135,23 +135,23 @@ ROLE_QUESTIONS = {
 
     # Non-IT – Head
     "Sales Head": [
-        "How do you define company-wide sales strategy?",
+        "How do you define sales strategy?",
         "How do you forecast revenue?",
         "How do you manage large sales teams?"
     ],
     "HR Head": [
-        "How do you align HR policies with business goals?",
+        "How do you align HR with business goals?",
         "How do you build company culture?",
-        "How do you manage workforce planning?"
+        "How do you plan workforce needs?"
     ],
     "Operations Head": [
-        "How do you optimize business operations?",
-        "How do you handle operational risks?",
+        "How do you optimize operations?",
+        "How do you manage operational risks?",
         "How do you improve efficiency at scale?"
     ],
     "Finance Head": [
         "How do you manage company finances?",
-        "How do you control costs and budgeting?",
+        "How do you control budgets and costs?",
         "How do you ensure financial compliance?"
     ],
     "Marketing Head": [
