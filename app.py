@@ -111,6 +111,7 @@ Velvoro HR Team
 
 @app.route("/", methods=["GET","POST"])
 def index():
+    submitted = False
     if request.method == "POST":
         name = request.form.get("name")
         phone = request.form.get("phone")
@@ -141,6 +142,7 @@ def index():
             ])
 
         send_email(email, name, role)
+        submitted = True
 
     return render_template_string(
         TEMPLATE,
@@ -148,8 +150,20 @@ def index():
         non_it_roles=NON_IT_ROLES,
         role_questions=ROLE_QUESTIONS,
         default_it=DEFAULT_IT_QUESTIONS,
-        default_non_it=DEFAULT_NON_IT_QUESTIONS
+        default_non_it=DEFAULT_NON_IT_QUESTIONS,
+        submitted=submitted
     )
+
+@app.route("/admin")
+def admin():
+    rows = []
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, newline="", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            headers = next(reader)
+            for r in reader:
+                rows.append(r)
+    return render_template_string(ADMIN_TEMPLATE, headers=headers, rows=rows)
 
 TEMPLATE = """
 <!doctype html>
@@ -190,6 +204,11 @@ function loadQuestions(){
 </head>
 <body class="container py-4">
 <h3>Velvoro Job AI</h3>
+
+{% if submitted %}
+<div class="alert alert-success">Your application has been submitted successfully.</div>
+{% endif %}
+
 <form method="post" enctype="multipart/form-data">
 <input name="name" class="form-control mb-2" placeholder="Full Name" required>
 <input name="phone" class="form-control mb-2" placeholder="Phone" required>
@@ -224,6 +243,33 @@ function loadQuestions(){
 <input type="file" name="resume" class="form-control mb-3" required>
 <button class="btn btn-primary">Submit</button>
 </form>
+</body>
+</html>
+"""
+
+ADMIN_TEMPLATE = """
+<!doctype html>
+<html>
+<head>
+<title>Admin - Velvoro Job AI</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="container py-4">
+<h3>Applications</h3>
+<table class="table table-bordered table-sm">
+<tr>
+{% for h in headers %}
+<th>{{h}}</th>
+{% endfor %}
+</tr>
+{% for r in rows %}
+<tr>
+{% for c in r %}
+<td>{{c}}</td>
+{% endfor %}
+</tr>
+{% endfor %}
+</table>
 </body>
 </html>
 """
