@@ -2,7 +2,7 @@ import os
 import csv
 import smtplib
 from email.mime.text import MIMEText
-from flask import Flask, request, render_template_string
+from flask import Flask, request, render_template_string, redirect, url_for
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
@@ -11,81 +11,149 @@ os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
 DATA_FILE = "applications.csv"
 
-# =========================
-# IT ROLES (A–Z, INDUSTRY)
-# =========================
 IT_ROLES = [
-    "AI Engineer","Android Developer","Application Support Engineer","AR/VR Engineer",
-    "Automation Engineer","Backend Developer","Big Data Engineer","Blockchain Developer",
-    "Build & Release Engineer","Business Intelligence Developer",
-    "Cloud Administrator","Cloud Architect","Cloud Engineer","Computer Vision Engineer",
-    "Cyber Security Analyst","Cyber Security Engineer","Data Analyst","Data Architect",
-    "Data Engineer","Data Scientist","Database Administrator","DevOps Engineer",
-    "Director of Engineering","Embedded Systems Engineer","ERP Consultant",
-    "Frontend Developer","Full Stack Developer","Game Developer","Hardware Engineer",
-    "IT Analyst","IT Consultant","IT Coordinator","IT Manager","IT Support Engineer",
-    "IT Trainee","Junior Software Developer","Lead Engineer","Machine Learning Engineer",
-    "Mobile App Developer","Network Administrator","Network Engineer","NOC Engineer",
-    "Platform Engineer","Principal Engineer","Product Engineer","Program Manager",
-    "QA Analyst","QA Engineer","Release Manager","Research Engineer","Robotics Engineer",
-    "SAP Consultant","Scrum Master","Security Architect","Senior Data Analyst",
-    "Senior Data Engineer","Senior Data Scientist","Senior DevOps Engineer",
-    "Senior QA Engineer","Senior Software Engineer","Site Reliability Engineer",
-    "Solution Architect","Software Architect","Software Engineer",
-    "Systems Administrator","Systems Engineer","Tech Lead","Technical Architect",
-    "Technical Program Manager","Test Automation Engineer","UI Developer",
-    "UX Engineer","VP Engineering","Web Developer","CTO"
+    "IT Trainee","Junior Software Developer","Software Engineer","Senior Software Engineer",
+    "Tech Lead","Solution Architect","Engineering Manager","Director of Engineering","CTO",
+    "DevOps Engineer","Senior DevOps Engineer","Cloud Architect",
+    "Data Analyst","Senior Data Analyst","Data Scientist","Senior Data Scientist",
+    "AI Engineer","ML Engineer","QA Engineer","Senior QA Engineer"
 ]
 
-# =========================
-# NON-IT ROLES (A–Z, INDUSTRY)
-# =========================
 NON_IT_ROLES = [
-    "Account Executive","Account Manager","Accounts Assistant","Accounts Manager",
-    "Administrative Assistant","Area Manager","Assistant Manager","Back Office Executive",
-    "Banking Executive","Brand Manager","Branch Manager","Business Analyst",
-    "Business Development Executive","Business Development Manager",
-    "Call Center Executive","Chief Executive Officer","Chief Financial Officer",
-    "Chief Human Resources Officer","Chief Marketing Officer","Client Relationship Manager",
-    "Compliance Officer","Content Writer","Corporate Trainer","Customer Care Executive",
-    "Customer Relationship Executive","Customer Success Manager","Digital Marketing Executive",
-    "Digital Marketing Manager","District Manager","E-commerce Executive",
-    "E-commerce Manager","Event Coordinator","Event Manager","Executive Assistant",
-    "Facility Manager","Finance Executive","Finance Manager","Finance Head",
-    "Front Office Executive","General Manager","Growth Manager","HR Executive",
-    "HR Manager","HR Head","Inside Sales Executive","Key Account Manager",
-    "Legal Executive","Legal Manager","Logistics Executive","Logistics Manager",
-    "Marketing Executive","Marketing Manager","Marketing Head","Media Planner",
-    "Operations Executive","Operations Manager","Operations Head","Office Assistant",
-    "Office Manager","PR Executive","PR Manager","Product Manager","Program Coordinator",
-    "Program Manager","Project Coordinator","Project Manager","Purchase Executive",
-    "Purchase Manager","Quality Executive","Quality Manager","Regional Manager",
-    "Relationship Manager","Retail Manager","Risk Analyst","Risk Manager",
-    "Sales Executive","Sales Manager","Sales Head","Senior Manager",
-    "Social Media Executive","Social Media Manager","Store Manager",
-    "Supply Chain Executive","Supply Chain Manager","Talent Acquisition Executive",
-    "Talent Acquisition Manager","Territory Manager","Training Executive",
-    "Training Manager","Transport Manager","Vendor Manager","VP Operations","VP Sales"
+    "Office Assistant","Call Center Executive",
+    "Sales Executive","Senior Sales Executive","Area Sales Manager",
+    "Regional Sales Manager","Sales Head",
+    "HR Executive","HR Manager","HR Head",
+    "Operations Executive","Operations Manager","Operations Head",
+    "Accountant","Senior Accountant","Finance Manager","Finance Head",
+    "Marketing Executive","Marketing Manager","Marketing Head"
 ]
 
-# =========================
-# ROLE QUESTIONS (UNCHANGED)
-# =========================
-ROLE_QUESTIONS = {}
+ROLE_QUESTIONS = {
+    "IT Trainee": [
+        "What basic programming or IT skills do you have?",
+        "Which technologies are you currently learning?",
+        "How do you approach learning a new technical skill?"
+    ],
+    "Junior Software Developer": [
+        "Which programming languages have you worked with?",
+        "How do you debug basic issues in your code?",
+        "Describe a small project you have worked on."
+    ],
+    "Software Engineer": [
+        "Which programming languages and frameworks do you use regularly?",
+        "How do you debug production-level issues?",
+        "Describe a challenging project you completed."
+    ],
+    "Senior Software Engineer": [
+        "How do you design scalable software systems?",
+        "How do you mentor junior developers?",
+        "How do you handle technical debt?"
+    ],
+    "Tech Lead": [
+        "How do you lead a development team?",
+        "How do you review and approve code?",
+        "How do you balance delivery speed and quality?"
+    ],
+    "Solution Architect": [
+        "How do you design system architecture for scalability?",
+        "How do you choose technologies for a project?",
+        "How do you handle performance bottlenecks?"
+    ],
+    "Cloud Architect": [
+        "How do you design cloud-native architectures?",
+        "How do you manage cost optimization in cloud systems?",
+        "How do you ensure cloud security?"
+    ],
+    "Engineering Manager": [
+        "How do you manage engineering teams?",
+        "How do you track project progress?",
+        "How do you handle underperforming team members?"
+    ],
+    "Director of Engineering": [
+        "How do you align engineering goals with business goals?",
+        "How do you scale engineering teams?",
+        "How do you manage multiple projects?"
+    ],
+    "CTO": [
+        "How do you define long-term technology vision?",
+        "How do you align technology with business strategy?",
+        "How do you evaluate emerging technologies?"
+    ],
+    "Office Assistant": [
+        "What administrative tasks have you handled?",
+        "How do you manage daily office activities?",
+        "How do you prioritize your work?"
+    ],
+    "Call Center Executive": [
+        "How do you handle customer calls?",
+        "How do you deal with difficult customers?",
+        "How do you meet call targets?"
+    ],
+    "Sales Executive": [
+        "How do you approach a new customer?",
+        "How do you handle rejection in sales?",
+        "Describe a sales target you achieved."
+    ],
+    "Area Sales Manager": [
+        "How do you manage a sales territory?",
+        "How do you achieve regional targets?",
+        "How do you motivate your sales team?"
+    ],
+    "Regional Sales Manager": [
+        "How do you plan regional sales strategy?",
+        "How do you track team performance?",
+        "How do you expand new markets?"
+    ],
+    "HR Executive": [
+        "How do you source candidates?",
+        "How do you coordinate interviews?",
+        "How do you communicate with candidates?"
+    ],
+    "HR Manager": [
+        "How do you design hiring strategies?",
+        "How do you handle employee conflicts?",
+        "How do you measure HR performance?"
+    ],
+    "Sales Head": [
+        "How do you define company-wide sales strategy?",
+        "How do you forecast revenue?",
+        "How do you manage large sales teams?"
+    ],
+    "HR Head": [
+        "How do you align HR policies with business goals?",
+        "How do you build company culture?",
+        "How do you manage workforce planning?"
+    ],
+    "Operations Head": [
+        "How do you optimize business operations?",
+        "How do you handle operational risks?",
+        "How do you improve efficiency at scale?"
+    ],
+    "Finance Head": [
+        "How do you manage company finances?",
+        "How do you control costs and budgeting?",
+        "How do you ensure financial compliance?"
+    ],
+    "Marketing Head": [
+        "How do you define marketing strategy?",
+        "How do you measure campaign ROI?",
+        "How do you build brand presence?"
+    ]
+}
+
 DEFAULT_IT_QUESTIONS = [
     "Explain your technical background.",
     "Describe a technical challenge you solved.",
     "How do you keep your skills updated?"
 ]
+
 DEFAULT_NON_IT_QUESTIONS = [
     "Describe your experience related to this role.",
     "How do you handle work pressure?",
     "Why should we hire you?"
 ]
 
-# =========================
-# CSV INIT
-# =========================
 if not os.path.exists(DATA_FILE):
     with open(DATA_FILE, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
@@ -116,7 +184,6 @@ Velvoro HR Team
 
 @app.route("/", methods=["GET","POST"])
 def index():
-    submitted = False
     if request.method == "POST":
         data = request.form
         resume_file = request.files.get("resume")
@@ -137,7 +204,9 @@ def index():
             ])
 
         send_email(data.get("email"), data.get("name"), data.get("role"))
-        submitted = True
+        return redirect(url_for("index", success="1"))
+
+    submitted = request.args.get("success") == "1"
 
     return render_template_string(
         TEMPLATE,
@@ -152,6 +221,7 @@ def index():
 @app.route("/admin")
 def admin():
     rows = []
+    headers = []
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, newline="", encoding="utf-8") as f:
             reader = csv.reader(f)
